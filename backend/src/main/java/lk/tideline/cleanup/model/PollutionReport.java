@@ -45,15 +45,6 @@ public class PollutionReport {
 
     private String province;
 
-    /** Region keys resolved from the province text on save; null if it matches no lookup row. */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "province_id")
-    private Province provinceRef;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "district_id")
-    private District district;
-
     @Column(nullable = false)
     private Double latitude;
 
@@ -112,23 +103,6 @@ public class PollutionReport {
     private Instant escalatedAt;
     private Instant decidedAt;
     private Instant verifiedAt;
-
-    /** REQ-11 — when the pollution happened, as opposed to when it was submitted. */
-    private Instant incidentAt;
-
-    /** NF-9 — an administrator judged the site unsafe to clean without guidance. */
-    @Column(nullable = false)
-    private boolean hazardous = false;
-
-    /** NF-11, NF-14 — the safety guidance that unblocks a hazardous cleanup. */
-    @Column(length = 1000)
-    private String safetyNote;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "hazard_marked_by_id")
-    private User hazardMarkedBy;
-
-    private Instant hazardMarkedAt;
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();

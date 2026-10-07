@@ -3,29 +3,16 @@ spring:
     name: cleanup-backend
 
   # Default profile runs on in-memory H2 so the API starts with no database setup.
-  # MODE=MySQL runs the same Flyway migrations the real database gets.
-  # Use the `mysql` profile (application-mysql.yml) for the target database.
+  # Use the `mysql` profile (application-mysql.yml) for the real target database.
   datasource:
-    url: jdbc:h2:mem:tideline;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=POSITION,VALUE,KEY
+    url: jdbc:h2:mem:tideline;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password: ''
 
-  # The schema comes from db/migration, never from Hibernate. The placeholders below
-  # keep one set of migrations working on both H2 and MySQL, whose column types differ.
-  flyway:
-    enabled: true
-    baseline-on-migrate: true
-    baseline-version: 1
-    placeholders:
-      tableopts: ''
-      ts: timestamp(6) with time zone
-      bool: boolean
-
   jpa:
     hibernate:
-      # Flyway owns the schema; Hibernate only checks the entities still match it.
-      ddl-auto: validate
+      ddl-auto: create-drop
     open-in-view: false
     properties:
       hibernate.format_sql: true

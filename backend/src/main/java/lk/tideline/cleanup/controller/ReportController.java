@@ -145,17 +145,4 @@ public class ReportController {
     public ReportResponse decide(@PathVariable Long id, @Valid @RequestBody AuthorityDecisionRequest request) {
         return reportService.decideAsAuthority(id, request, currentUser.require());
     }
-
-    /** NF-9 — an administrator marks a site hazardous and records its safety guidance. */
-    @PostMapping("/{id}/hazard")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ReportResponse markHazard(@PathVariable Long id, @Valid @RequestBody HazardRequest request) {
-        return reportService.markHazard(id, request, currentUser.require());
-    }
-
-    /** REQ-28, REQ-35 — every administrator and authority decision on this report. */
-    @GetMapping("/{id}/review-history")
-    public List<ReviewActionResponse> reviewHistory(@PathVariable Long id) {
-        return reportService.reviewHistory(id, currentUser.require());
-    }
 }

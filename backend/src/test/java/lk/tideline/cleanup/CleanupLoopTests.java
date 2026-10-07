@@ -2,6 +2,8 @@ package lk.tideline.cleanup;
 
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectResponse;
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectUpdateRequest;
+import lk.tideline.cleanup.dto.ProjectDtos.EquipmentLine;
+import lk.tideline.cleanup.dto.ReportDtos.ApprovalResources;
 import lk.tideline.cleanup.dto.ReportDtos.AuthorityDecisionRequest;
 import lk.tideline.cleanup.dto.ReportDtos.ReportResponse;
 import lk.tideline.cleanup.dto.UserDtos.OwnedProject;
@@ -30,6 +32,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @TestPropertySource(properties = {"tideline.seed-demo-data=false", "tideline.uploads.directory=target/test-uploads"})
 class CleanupLoopTests {
 
+    /** Every approval commits the resources the cleanup needs. */
+    private static final ApprovalResources RESOURCES =
+            new ApprovalResources(10, 2, List.of(new EquipmentLine("Gloves", 20)));
+
     @Autowired
     private UserRepository users;
 
@@ -54,7 +60,7 @@ class CleanupLoopTests {
         PollutionReport report = escalatedReport(reporter);
 
         ReportResponse decided = reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved."), user(Role.AUTHORITY));
+                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved.", RESOURCES), user(Role.AUTHORITY));
 
         assertThat(decided.status()).isEqualTo(ReportStatus.APPROVED);
         assertThat(decided.authorityDecision()).isEqualTo(ReviewDecision.APPROVED);
@@ -79,7 +85,7 @@ class CleanupLoopTests {
 
         projects.join(project.id(), volunteer, null);
         projects.addUpdate(project.id(),
-                new ProjectUpdateRequest(UpdateStage.AFTER, "All clear.", null, 100, 12.5, null), reporter);
+                new ProjectUpdateRequest(UpdateStage.AFTER, "All clear.", null, 100, 12.5), reporter);
 
         assertThat(reports.findById(project.reportId()).orElseThrow().getStatus()).isEqualTo(ReportStatus.CLEANED);
         assertThat(titlesFor(volunteer)).contains("Cleanup complete");
@@ -92,7 +98,7 @@ class CleanupLoopTests {
     void onlyTheProjectOwnerCanRecordProgress() {
         User reporter = user(Role.CITIZEN);
         ProjectResponse project = approve(reporter);
-        ProjectUpdateRequest update = new ProjectUpdateRequest(UpdateStage.DURING, "Half done.", null, 50, 3.0, null);
+        ProjectUpdateRequest update = new ProjectUpdateRequest(UpdateStage.DURING, "Half done.", null, 50, 3.0);
 
         for (Role official : List.of(Role.AUTHORITY, Role.ADMIN, Role.CITIZEN)) {
             assertThatThrownBy(() -> projects.addUpdate(project.id(), update, user(official)))
@@ -122,7 +128,7 @@ class CleanupLoopTests {
         ProjectResponse project = approve(reporter);
 
         assertThatThrownBy(() -> reportService.decideAsAuthority(project.reportId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Again."), user(Role.AUTHORITY)))
+                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Again.", RESOURCES), user(Role.AUTHORITY)))
                 .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> reportService.vote(project.reportId(), user(Role.CITIZEN), true))
                 .isInstanceOf(IllegalStateException.class)
@@ -155,7 +161,7 @@ class CleanupLoopTests {
                 .hasMessageContaining("complete");
 
         projects.addUpdate(project.id(),
-                new ProjectUpdateRequest(UpdateStage.AFTER, "Done.", null, 100, null, null), owner);
+                new ProjectUpdateRequest(UpdateStage.AFTER, "Done.", null, 100, null), owner);
 
         assertThatThrownBy(() -> projects.mark(project.id(), participantId, 4, volunteer))
                 .isInstanceOf(IllegalStateException.class);
@@ -168,7 +174,7 @@ class CleanupLoopTests {
     private ProjectResponse approve(User reporter) {
         PollutionReport report = escalatedReport(reporter);
         ReportResponse decided = reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved."), user(Role.AUTHORITY));
+                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved.", RESOURCES), user(Role.AUTHORITY));
         return projects.view(decided.projectId(), reporter);
     }
 

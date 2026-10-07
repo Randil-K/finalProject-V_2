@@ -1,11 +1,9 @@
 # Local development profile, used by `mvnw spring-boot:run` (see spring-boot.run.profiles in pom.xml).
 # Same H2 database as the default profile, but kept in a file so accounts, reports and uploads
 # survive a restart. Delete backend/data/ to start again from the demo data.
-#
-# The schema is built by the Flyway migrations in db/migration, exactly as it is on MySQL.
 spring:
   datasource:
-    url: jdbc:h2:file:${H2_FILE:./data/tideline};AUTO_SERVER=TRUE;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=POSITION,VALUE,KEY
+    url: jdbc:h2:file:${H2_FILE:./data/tideline};AUTO_SERVER=TRUE
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update

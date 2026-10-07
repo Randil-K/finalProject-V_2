@@ -1,10 +1,10 @@
 import React from 'react';
-import { Badge, Button, Input, Textarea, Alert, Avatar } from '../../design-system';
+import { Badge, Button, Input, Select, Textarea, Alert, Avatar } from '../../design-system';
 import Modal from '../../components/Modal.jsx';
 import { Async } from '../../components/AsyncState.jsx';
 import { api } from '../../api/index.js';
 import { useApi } from '../../hooks/useApi.js';
-import { ACCOUNT_STATUS, ROLE_LABEL, formatDate } from '../../lib/format.js';
+import { ACCOUNT_STATUS, PROVINCES, ROLE_LABEL, formatDate } from '../../lib/format.js';
 import { mediaUrl } from '../../api/client.js';
 
 const COLUMNS = 'minmax(240px, 2fr) 150px 170px 100px 110px 120px';
@@ -12,7 +12,15 @@ const COLUMNS = 'minmax(240px, 2fr) 150px 170px 100px 110px 120px';
 export default function Users() {
   const [search, setSearch] = React.useState('');
   const [query, setQuery] = React.useState('');
+  const [role, setRole] = React.useState('');
+  const [province, setProvince] = React.useState('');
   const state = useApi(() => api.admin.users(query), [query]);
+
+  const roleOptions = Object.entries(ROLE_LABEL).map(([value, label]) => ({ value, label }));
+  const provinceOptions = PROVINCES.map((p) => ({ value: p, label: p }));
+  const filtered = (list) => list.filter((user) =>
+    (!role || user.role === role) && (!province || user.province === province));
+  const filtersActive = Boolean(role || province);
 
   const [target, setTarget] = React.useState(null);
   const [reason, setReason] = React.useState('');
@@ -57,11 +65,40 @@ export default function Users() {
         <Button type="submit" variant="secondary">Search</Button>
       </form>
 
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <Select
+          placeholder="All positions"
+          options={roleOptions}
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          style={{ minWidth: 180 }}
+        />
+        <Select
+          placeholder="All locations"
+          options={provinceOptions}
+          value={province}
+          onChange={(e) => setProvince(e.target.value)}
+          style={{ minWidth: 200 }}
+        />
+        {filtersActive ? (
+          <Button variant="ghost" size="sm" onClick={() => { setRole(''); setProvince(''); }}>
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+
       {notice ? <Alert tone="success" title="Done" onDismiss={() => setNotice(null)}>{notice}</Alert> : null}
       {error && !target ? <Alert tone="danger" title="That didn't work">{error}</Alert> : null}
 
-      <Async state={state} isEmpty={(list) => !list?.length} empty="No accounts match that search." emptyIcon="users">
-        {(users) => (
+      <Async
+        state={state}
+        isEmpty={(list) => !filtered(list).length}
+        empty={filtersActive ? 'No accounts match that search and filter.' : 'No accounts match that search.'}
+        emptyIcon="users"
+      >
+        {(list) => {
+          const users = filtered(list);
+          return (
           <div style={{ overflowX: 'auto', background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
             <div style={{ minWidth: 890 }}>
               <div style={{ display: 'grid', gridTemplateColumns: COLUMNS, padding: '10px var(--space-4)', background: 'var(--surface-sunken)', font: 'var(--text-micro)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-micro)' }}>
@@ -104,7 +141,8 @@ export default function Users() {
               ))}
             </div>
           </div>
-        )}
+          );
+        }}
       </Async>
 
       <Modal

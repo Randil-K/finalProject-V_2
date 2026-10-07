@@ -1,9 +1,8 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Card, Button, Checkbox, Input, Alert } from '../../design-system';
-import Modal from '../../components/Modal.jsx';
-import AuthLayout from '../../components/AuthLayout.jsx';
+import { Icon, Card, Button, Checkbox, Input, Alert } from '../../design-system';
 import PasswordInput from '../../components/PasswordInput.jsx';
+import Modal from '../../components/Modal.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
 
 export default function Login() {
@@ -37,43 +36,57 @@ export default function Login() {
   const rejected = reviewError?.code === 'ACCOUNT_REJECTED';
 
   return (
-    <>
-      <AuthLayout
-        width="narrow"
-        title="Sign in"
-        subtitle="Report and track coastal cleanup activity near you."
-        footer={<>New to Tideline? <Link to="/register">Create an account</Link></>}
-      >
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          {error && !reviewError ? <Alert tone="danger" title="Could not sign in">{error.message}</Alert> : null}
+    <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-page-warm)', padding: 'var(--space-6)' }}>
+      <div style={{ width: '100%', maxWidth: 400 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 'var(--space-8)' }}>
+          <Icon name="waves-horizontal" size="lg" color="var(--tide-600)" />
+          <span style={{ font: '700 20px/1 var(--font-display)', letterSpacing: '-0.03em', color: 'var(--text-strong)' }}>Tideline</span>
+        </div>
 
-          <Input
-            label="Email"
-            type="email"
-            placeholder="you@example.lk"
-            iconLeft="user"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <PasswordInput
-            placeholder="••••••••"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+        <Card padding="lg">
+          <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div>
+              <h1 style={{ font: 'var(--text-h2)', color: 'var(--text-strong)' }}>Sign in</h1>
+              <p style={{ font: 'var(--text-body-sm)', color: 'var(--text-muted)', marginTop: 4 }}>
+                Report and track coastal cleanup activity near you.
+              </p>
+            </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <Checkbox label="Remember me" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-            <Link to="/forgot-password" style={{ font: 'var(--text-body-sm)' }}>Forgot password?</Link>
-          </div>
+            {error && !reviewError ? <Alert tone="danger" title="Could not sign in">{error.message}</Alert> : null}
 
-          <Button type="submit" fullWidth size="lg" loading={busy} disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </form>
+            <Input
+              label="Email"
+              type="email"
+              placeholder="you@example.lk"
+              iconLeft="user"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <PasswordInput
+              label="Password"
+              placeholder="••••••••"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
 
-        <Card tone="warm" padding="md">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <Checkbox label="Remember me" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              <Link to="/forgot-password" style={{ font: 'var(--text-body-sm)' }}>Forgot password?</Link>
+            </div>
+
+            <Button type="submit" fullWidth size="lg" loading={busy} disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </Button>
+
+            <p style={{ font: 'var(--text-caption)', color: 'var(--text-muted)', textAlign: 'center' }}>
+              New to Tideline? <Link to="/register">Create an account</Link>
+            </p>
+          </form>
+        </Card>
+
+        <Card tone="warm" padding="md" style={{ marginTop: 'var(--space-4)' }}>
           <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Demo accounts</span>
           <p style={{ font: 'var(--text-caption)', color: 'var(--text-body-color)', marginTop: 6 }}>
             All seeded accounts use the password <code>password123</code>.
@@ -105,7 +118,7 @@ export default function Login() {
             ))}
           </div>
         </Card>
-      </AuthLayout>
+      </div>
 
       <Modal
         open={Boolean(reviewError)}
@@ -121,6 +134,6 @@ export default function Login() {
             : "An administrator is checking your certificates or website. You'll be able to sign in once it's approved, and we'll let you know here and in your alerts."}
         </Alert>
       </Modal>
-    </>
+    </div>
   );
 }

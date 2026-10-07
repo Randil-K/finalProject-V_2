@@ -13,15 +13,7 @@ Starts on `http://localhost:8080` with the `local` profile: an H2 database kept 
 same demo content the frontend shows. To start again from the demo data, stop the server and
 delete `backend/data/` (and `backend/uploads/` for uploaded files).
 
-The schema is built by the Flyway migrations in `src/main/resources/db/migration`, the same ones
-that run against MySQL; Hibernate only validates that the entities still match. See
-[docs/database/README.md](../docs/database/README.md).
-
-> **Coming from an older checkout:** delete `backend/data/` once. The old H2 file was created by
-> `ddl-auto: update` under H2's default mode, and the URL now runs H2 in MySQL compatibility mode.
-
-H2 console: `http://localhost:8080/h2-console` (JDBC URL
-`jdbc:h2:file:./data/tideline;AUTO_SERVER=TRUE;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=POSITION,VALUE,KEY`,
+H2 console: `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:file:./data/tideline;AUTO_SERVER=TRUE`,
 user `sa`, no password). Tests and a plain `java -jar` run without a profile use an in-memory
 database instead.
 
@@ -32,12 +24,7 @@ database instead.
 ```
 
 Reads `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` (see
-`application-mysql.yml`); the schema is created by Flyway from `db/migration` and demo seeding is
-off. Creating the database and user, and adding a migration, are covered in
-[docs/database/README.md](../docs/database/README.md).
-
-A MySQL database an earlier version created with `ddl-auto: update` is adopted without data loss:
-`spring.flyway.baseline-on-migrate=true` baselines it at V1 and applies V2 onwards.
+`application-mysql.yml`); the schema is created by Hibernate and demo seeding is off.
 
 ## Deploying
 
@@ -116,12 +103,6 @@ Authenticate with `POST /api/auth/login`, then send `Authorization: Bearer <toke
 | GET/POST | `/api/opportunities` | 8 | read authenticated, post organisation |
 | POST | `/api/opportunities/{id}/applications` · GET `/applications/mine` | 8 | diver |
 | GET | `/api/opportunities/{id}/applications` · POST `/applications/{id}/decision` | 8 | posting organisation, admin |
-| POST | `/api/alerts/{id}/response` (`ACCEPTED` / `DECLINED`) | 6 | the recipient |
-| POST | `/api/projects/{id}/alerts/escalate` (widen the alert radius) | 6 | project owner, admin |
-| POST | `/api/reports/{id}/hazard` (mark hazardous, with a safety note) | 4 | admin |
-| GET | `/api/reports/{id}/review-history` | 4 | admin, authority, the reporter |
-| GET | `/api/regions/provinces` · `/api/regions/districts` | 9 | public |
-| GET | `/api/admin/audit` · `/api/admin/users/{id}/sanctions` | 4 | admin |
 | GET | `/api/analytics/summary` | 9 | public |
 | GET | `/api/admin/users?query=` · POST `/api/admin/users/{id}/suspension` | 4 | admin |
 | GET | `/api/admin/verifications?status=` · POST `/api/admin/verifications/{id}` | 1 | admin |
@@ -176,23 +157,9 @@ Authenticate with `POST /api/auth/login`, then send `Authorization: Bearer <toke
   report becomes a project, and when the site is cleaned.
 - **Enum columns.** Enum fields are stored as plain text (`@JdbcTypeCode(SqlTypes.VARCHAR)`), and
   the `TidelineH2Dialect` / `TidelineMySQLDialect` skip Hibernate's `CHECK (... IN (...))` lists, so
-  adding a status or alert type doesn't break an existing database. A MySQL database created before
-  this change still has native `enum` columns and needs a one-off
-  `ALTER TABLE ... MODIFY ... VARCHAR(255)` for each before Hibernate's `validate` will pass.
-- **Schema.** Flyway owns it. Migrations live in `src/main/resources/db/migration` and run on H2
-  and MySQL alike; Hibernate runs `ddl-auto: validate` on every profile and refuses to start if an
-  entity no longer matches. Never edit an applied migration — add the next one.
-- **Review history.** Every administrator and authority decision is written to
-  `report_review_actions`, every registration decision to `account_review_actions`, and every
-  warning or restriction to `user_sanctions`. The columns on the report and the user hold the
-  *latest* decision for the API; the tables hold all of them (REQ-28, REQ-35, NF-25).
-- **Hazardous sites.** An administrator can mark a report hazardous (`POST /api/reports/{id}/hazard`).
-  Nobody can join the resulting cleanup until a safety note is on the report, which the authority's
-  approval comment supplies (NF-9, NF-11, NF-14).
-- **Alert escalation.** A location alert is recorded as an `alert_dispatch` at a radius tier;
-  recipients accept or decline (`POST /api/alerts/{id}/response`), and the owner or an
-  administrator can widen the radius 5 km -> 10 km -> 25 km when turnout falls short of the
-  project's `minimumParticipants` (REQ-39 to REQ-41).
+  adding a status or alert type doesn't break a database `ddl-auto: update` already created. A MySQL
+  database created before this change still has native `enum` columns and needs a one-off
+  `ALTER TABLE ... MODIFY ... VARCHAR(255)` for each.
 
 - **Officials hear about their work.** Administrators are alerted about new accounts to verify
   and about authority decisions; authority officers when a report is sent to them.

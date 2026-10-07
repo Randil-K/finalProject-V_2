@@ -8,6 +8,7 @@ import ReportStatusBadge from '../../components/ReportStatusBadge.jsx';
 import CommunityVerificationCard from '../../components/CommunityVerificationCard.jsx';
 import ReviewStatusCard from '../../components/ReviewStatusCard.jsx';
 import InfoRequestsPanel from '../../components/InfoRequestsPanel.jsx';
+import ResourceFields, { buildResources, resourcePlanFrom } from '../../components/ResourceFields.jsx';
 import UserLink from '../../components/UserLink.jsx';
 import { Async } from '../../components/AsyncState.jsx';
 import { api } from '../../api/index.js';
@@ -29,6 +30,7 @@ export default function ReportReview() {
   const tab = searchParams.get('tab') === 'info' ? 'info' : 'review';
   const showTab = (next) => setSearchParams(next === 'info' ? { tab: 'info' } : {}, { replace: true });
   const [comment, setComment] = React.useState('');
+  const [plan, setPlan] = React.useState(() => resourcePlanFrom(null));
   const [rejectOpen, setRejectOpen] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [notice, setNotice] = React.useState(null);
@@ -63,6 +65,17 @@ export default function ReportReview() {
 
   const moderate = (decision, message) => run(() => api.reports.moderate(id, decision, comment.trim() || null), message);
   const decide = (decision, message) => run(() => api.reports.authorityDecision(id, decision, comment.trim()), message);
+
+  /** Approving commits the resources, so they travel with the decision. */
+  function approveAsOfficer(message) {
+    const { payload, error: invalid } = buildResources(plan);
+    if (invalid) {
+      setNotice(null);
+      setError(invalid);
+      return;
+    }
+    run(() => api.reports.authorityDecision(id, 'APPROVED', comment.trim(), payload), message);
+  }
 
   return (
     <Async state={state}>
@@ -171,11 +184,13 @@ export default function ReportReview() {
                   </p>
                 </div>
                 {canDecide ? (
-                  <Alert tone="warning" title="List the resources this cleanup needs">
-                    Administrators assign volunteers, divers and equipment from this comment — it is all
-                    they have to work from. Say how many volunteers and divers the site needs, and what
-                    equipment, such as a boat, lift bags or cutting tools.
-                  </Alert>
+                  <>
+                    <Alert tone="warning" title="Set the resources this cleanup needs">
+                      A project cannot be approved without them. The owner and everyone who joins work
+                      from what you set here, and you can revise it later from the project.
+                    </Alert>
+                    <ResourceFields plan={plan} onChange={setPlan} />
+                  </>
                 ) : null}
                 <Textarea
                   label="Official comment"
@@ -183,7 +198,7 @@ export default function ReportReview() {
                     ? 'Required for every decision — the reporter and administrators see it.'
                     : 'Required to request more information or reject — the reporter sees it.'}
                   placeholder={canDecide
-                    ? 'e.g. Approved. Needs 12 volunteers and 3 divers, with a boat and lift bags for the drums.'
+                    ? 'e.g. Approved. Clear the drums first and coordinate with the Kalpitiya fisheries office.'
                     : 'Notes for the government officer, what information you need from the reporter, or why you are rejecting.'}
                   rows={3}
                   value={comment}
@@ -213,7 +228,7 @@ export default function ReportReview() {
                       <Button
                         iconLeft="shield-check"
                         disabled={busy || !hasComment}
-                        onClick={() => decide('APPROVED', (updated) => `Approved. Project ${updated.projectReference} has been created and ${updated.reporter?.fullName} is its project owner.`)}
+                        onClick={() => approveAsOfficer((updated) => `Approved. Project ${updated.projectReference} has been created with its resources, and ${updated.reporter?.fullName} is its project owner.`)}
                       >
                         Approve and create project
                       </Button>

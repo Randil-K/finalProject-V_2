@@ -1,5 +1,9 @@
 package lk.tideline.cleanup.dto;
 
+import jakarta.validation.Valid;
+import lk.tideline.cleanup.dto.ProjectDtos.EquipmentLine;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -9,9 +13,7 @@ import lk.tideline.cleanup.model.InfoRequestStatus;
 import lk.tideline.cleanup.model.PollutionReport;
 import lk.tideline.cleanup.model.ReactionType;
 import lk.tideline.cleanup.model.ReportComment;
-import lk.tideline.cleanup.model.ReportReviewAction;
 import lk.tideline.cleanup.model.ReportStatus;
-import lk.tideline.cleanup.model.ReviewStage;
 import lk.tideline.cleanup.model.ReviewDecision;
 import lk.tideline.cleanup.model.Severity;
 import lk.tideline.cleanup.model.User;
@@ -32,9 +34,7 @@ public final class ReportDtos {
             String province,
             @NotNull Double latitude,
             @NotNull Double longitude,
-            List<String> photoUrls,
-            /** REQ-11 — when the pollution was seen. Optional; the submission time is recorded regardless. */
-            Instant incidentAt
+            List<String> photoUrls
     ) {
     }
 
@@ -75,15 +75,7 @@ public final class ReportDtos {
             Instant verifiedAt,
             Instant escalatedAt,
             /** The signed-in viewer's vote: true confirmed, false disputed, null none. */
-            Boolean myVote,
-            /** REQ-11 — when the pollution happened, if the reporter gave it. */
-            Instant incidentAt,
-            /** NF-9 — an administrator judged this site unsafe to clean without guidance. */
-            boolean hazardous,
-            /** NF-11, NF-14 — the safety guidance that unblocks a hazardous cleanup. */
-            String safetyNote,
-            /** REQ-58 — the seeded district this report rolls up to, if its location matched one. */
-            String district
+            Boolean myVote
     ) {
         public static ReportResponse from(PollutionReport report, int thresholdPercent, int minimumConfirmations,
                                           CleanupProject project, InfoRequestStatus infoRequestStatus, Boolean myVote,
@@ -122,11 +114,7 @@ public final class ReportDtos {
                     report.getCreatedAt(),
                     report.getVerifiedAt(),
                     report.getEscalatedAt(),
-                    myVote,
-                    report.getIncidentAt(),
-                    report.isHazardous(),
-                    report.getSafetyNote(),
-                    report.getDistrict() == null ? null : report.getDistrict().getName());
+                    myVote);
         }
     }
 
@@ -185,34 +173,22 @@ public final class ReportDtos {
     /** Module 5 — approve (creates the project), reject, or ask for more information. A comment is required. */
     public record AuthorityDecisionRequest(
             @NotNull ReviewDecision decision,
-            @NotBlank @Size(max = 1000) String comment
+            @NotBlank @Size(max = 1000) String comment,
+            /** What the cleanup needs. Required when approving, ignored otherwise. */
+            @Valid ApprovalResources resources
     ) {
     }
 
-    /** NF-9 — an administrator marks a site hazardous, with the safety note that lets work start. */
-    public record HazardRequest(
-            @NotNull Boolean hazardous,
-            @Size(max = 1000) String safetyNote
+    /** The volunteers, divers and equipment a government officer commits to an approved project. */
+    public record ApprovalResources(
+            @Min(0) @Max(1000) Integer volunteersNeeded,
+            @Min(0) @Max(1000) Integer diversNeeded,
+            @Size(max = 30) List<@Valid EquipmentLine> equipment
     ) {
-    }
-
-    /** REQ-28, REQ-35 — one decision from the report's review history. */
-    public record ReviewActionResponse(
-            Long id,
-            ReviewStage stage,
-            ReviewDecision decision,
-            String comment,
-            UserDtos.UserSummary reviewer,
-            Instant createdAt
-    ) {
-        public static ReviewActionResponse from(ReportReviewAction action) {
-            return new ReviewActionResponse(
-                    action.getId(),
-                    action.getStage(),
-                    action.getDecision(),
-                    action.getComment(),
-                    UserDtos.UserSummary.from(action.getReviewer()),
-                    action.getCreatedAt());
+        public boolean isEmpty() {
+            return (volunteersNeeded == null || volunteersNeeded == 0)
+                    && (diversNeeded == null || diversNeeded == 0)
+                    && (equipment == null || equipment.isEmpty());
         }
     }
 }

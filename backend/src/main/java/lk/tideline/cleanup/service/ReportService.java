@@ -1,17 +1,16 @@
 package lk.tideline.cleanup.service;
 
 import lk.tideline.cleanup.config.TidelineProperties;
+import lk.tideline.cleanup.dto.ProjectDtos.ResourcesRequest;
 import lk.tideline.cleanup.dto.ReportDtos.*;
 import lk.tideline.cleanup.model.*;
 import lk.tideline.cleanup.repository.CleanupProjectRepository;
 import lk.tideline.cleanup.repository.CommentReactionRepository;
 import lk.tideline.cleanup.repository.PollutionReportRepository;
 import lk.tideline.cleanup.repository.ReportCommentRepository;
-import lk.tideline.cleanup.repository.ReportReviewActionRepository;
 import lk.tideline.cleanup.repository.UserRepository;
 import lk.tideline.cleanup.repository.VerificationVoteRepository;
 import org.springframework.data.domain.Page;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,9 +40,6 @@ public class ReportService {
     private final TidelineProperties properties;
     private final DocumentStorageService storage;
     private final InfoRequestService infoRequests;
-    private final ReportReviewActionRepository reviewActions;
-    private final AuditService audit;
-    private final RegionService regions;
 
     public ReportService(PollutionReportRepository reportRepository,
                          VerificationVoteRepository voteRepository,
@@ -55,10 +51,7 @@ public class ReportService {
                          AlertService alertService,
                          TidelineProperties properties,
                          DocumentStorageService storage,
-                         InfoRequestService infoRequests,
-                         ReportReviewActionRepository reviewActions,
-                         AuditService audit,
-                         RegionService regions) {
+                         InfoRequestService infoRequests) {
         this.reportRepository = reportRepository;
         this.voteRepository = voteRepository;
         this.commentRepository = commentRepository;
@@ -70,9 +63,6 @@ public class ReportService {
         this.properties = properties;
         this.storage = storage;
         this.infoRequests = infoRequests;
-        this.reviewActions = reviewActions;
-        this.audit = audit;
-        this.regions = regions;
     }
 
     private int minimumConfirmations() {
@@ -158,8 +148,6 @@ public class ReportService {
         report.setLongitude(request.longitude());
         report.setReporter(reporter);
         report.setStatus(ReportStatus.PENDING);
-        report.setIncidentAt(request.incidentAt());
-        regions.apply(report);
 
         if (request.photoUrls() != null) {
             for (String url : request.photoUrls()) {
@@ -175,7 +163,6 @@ public class ReportService {
             photo.setReport(report);
             photo.setStoredName(storedName);
             photo.setContentType(file.contentType());
-            photo.setSizeBytes((long) file.bytes().length);
             photo.setUrl("/api/reports/evidence/" + storedName);
             photo.setCaption(file.originalName());
             report.getPhotos().add(photo);
@@ -408,12 +395,6 @@ public class ReportService {
         report.setModerationComment(comment);
         report.setAdminReviewedAt(now);
         report.setUpdatedAt(now);
-
-        // REQ-28 / NF-25 — the decision columns above hold only the latest one, so keep the history.
-        recordReview(report, admin, ReviewStage.ADMIN, decision, comment, now);
-        audit.record(admin, AuditService.REPORT_MODERATED, "PollutionReport", report.getId(),
-                "Administrator decision " + decision + " on " + reference
-                        + (comment == null ? "" : ": " + comment));
         return toResponse(report);
     }
 
@@ -432,6 +413,10 @@ public class ReportService {
         if (decision == ReviewDecision.PENDING) {
             throw new IllegalArgumentException("Choose approve, reject, or request more information.");
         }
+        if (decision == ReviewDecision.APPROVED && (request.resources() == null || request.resources().isEmpty())) {
+            throw new IllegalArgumentException(
+                    "Set the volunteers, divers or equipment this cleanup needs before approving it.");
+        }
 
         String comment = request.comment().trim();
         Instant now = Instant.now();
@@ -443,33 +428,31 @@ public class ReportService {
         report.setDecidedAt(now);
         report.setUpdatedAt(now);
 
-        // NF-11 / NF-14 — on a hazardous site the officer instructions are the safety guidance
-        // that lets volunteers start work, so they are kept where the join check can read them.
-        if (report.isHazardous() && decision == ReviewDecision.APPROVED) {
-            report.setSafetyNote(comment);
-        }
-
-        // REQ-35 / NF-25 — every authority decision on record, not just the most recent.
-        recordReview(report, officer, ReviewStage.AUTHORITY, decision, comment, now);
-        audit.record(officer, AuditService.REPORT_AUTHORITY_DECISION, "PollutionReport", report.getId(),
-                "Authority decision " + decision + " on " + reference + ": " + comment);
-
         String adminTitle;
         switch (decision) {
             case APPROVED -> {
                 report.setStatus(ReportStatus.APPROVED);
                 CleanupProject project = projectService.createFromApprovedReport(report);
-                // The officer's note is guidance for the administrators planning resources, not for the owner.
+                ApprovalResources resources = request.resources();
+                projectService.assignAtApproval(project,
+                        new ResourcesRequest(resources.volunteersNeeded(), resources.diversNeeded(),
+                                resources.equipment(), true),
+                        officer);
+                String needs = ProjectService.describeResources(project);
+
                 alertService.send(report.getReporter(), AlertType.PROJECT_PLANNED,
                         "Your report is now a project",
                         "The government officer approved " + reference + ". It is now project "
-                                + project.getReference() + " and you are its project owner.",
+                                + project.getReference() + " and you are its project owner, with "
+                                + needs + " assigned.",
                         report.getId(), project.getId(), null);
+                // The officer's note is for the administrators keeping an eye on the workflow, not for the owner.
                 for (User admin : userRepository.findByRole(Role.ADMIN)) {
-                    alertService.sendCritical(admin, AlertType.RESOURCES_NEEDED,
-                            "Assign resources for " + project.getReference(),
-                            officer.getFullName() + " approved " + reference + ": " + comment,
-                            report.getId(), project.getId());
+                    alertService.send(admin, AlertType.AUTHORITY_DECISION,
+                            "Government officer approved " + reference,
+                            officer.getFullName() + ": " + comment + " — " + project.getReference()
+                                    + " has " + needs + " assigned.",
+                            report.getId(), project.getId(), null);
                 }
                 adminTitle = null;
             }
@@ -486,70 +469,13 @@ public class ReportService {
             }
         }
 
-        // Module 5 — "notify admin about approval status" (approval already sent its own high-priority alert).
+        // Module 5 — "notify admin about approval status" (approval sends its own alert above).
         for (User admin : adminTitle == null ? List.<User>of() : userRepository.findByRole(Role.ADMIN)) {
             alertService.send(admin, AlertType.AUTHORITY_DECISION, adminTitle,
                     officer.getFullName() + ": " + comment, report.getId(), null, null);
         }
 
         return toResponse(report);
-    }
-
-    /** NF-9 — an administrator marks a site hazardous and records the safety guidance for it. */
-    @Transactional
-    public ReportResponse markHazard(Long reportId, HazardRequest request, User admin) {
-        PollutionReport report = get(reportId);
-        boolean hazardous = Boolean.TRUE.equals(request.hazardous());
-        String note = trimmed(request.safetyNote());
-
-        if (hazardous && note == null && report.getAuthorityComment() != null) {
-            // The authority has already given instructions; treat them as the guidance.
-            note = report.getAuthorityComment();
-        }
-
-        report.setHazardous(hazardous);
-        report.setSafetyNote(hazardous ? note : null);
-        report.setHazardMarkedBy(admin);
-        report.setHazardMarkedAt(Instant.now());
-        report.setUpdatedAt(Instant.now());
-
-        alertService.sendCritical(report.getReporter(), AlertType.AUTHORITY_DECISION,
-                hazardous ? "Your report was marked hazardous" : "Hazard warning lifted on your report",
-                hazardous
-                        ? report.getReference() + " is unsafe to clean without official guidance."
-                                + (note == null ? " Wait for the safety instructions." : " " + note)
-                        : report.getReference() + " is no longer marked hazardous.",
-                report.getId());
-
-        audit.record(admin, AuditService.REPORT_HAZARD_MARKED, "PollutionReport", report.getId(),
-                (hazardous ? "Marked hazardous: " : "Hazard cleared: ") + report.getReference()
-                        + (note == null ? "" : " - " + note));
-        return toResponse(report, admin);
-    }
-
-    /** REQ-28 / REQ-35 — the full decision history of a report, for reviewers and its reporter. */
-    @Transactional(readOnly = true)
-    public List<ReviewActionResponse> reviewHistory(Long reportId, User viewer) {
-        PollutionReport report = get(reportId);
-        boolean reviewer = viewer.getRole() == Role.ADMIN || viewer.getRole() == Role.AUTHORITY;
-        if (!reviewer && !report.getReporter().getId().equals(viewer.getId())) {
-            throw new AccessDeniedException("Only reviewers and the reporter can see the review history.");
-        }
-        return reviewActions.findByReportOrderByCreatedAtAsc(report).stream()
-                .map(ReviewActionResponse::from)
-                .toList();
-    }
-
-    private void recordReview(PollutionReport report, User reviewer, ReviewStage stage,
-                              ReviewDecision decision, String comment, Instant at) {
-        ReportReviewAction action = new ReportReviewAction();
-        action.setReport(report);
-        action.setReviewer(reviewer);
-        action.setStage(stage);
-        action.setDecision(decision);
-        action.setComment(comment);
-        action.setCreatedAt(at);
-        reviewActions.save(action);
     }
 
     private static String trimmed(String value) {

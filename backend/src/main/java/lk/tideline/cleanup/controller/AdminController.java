@@ -5,10 +5,7 @@ import lk.tideline.cleanup.dto.UserDtos.AccountReviewRequest;
 import lk.tideline.cleanup.dto.UserDtos.AccountReviewResponse;
 import lk.tideline.cleanup.dto.UserDtos.AdminUserResponse;
 import lk.tideline.cleanup.dto.UserDtos.DocumentDownload;
-import lk.tideline.cleanup.dto.AuditDtos.AuditResponse;
-import lk.tideline.cleanup.dto.UserDtos.SanctionResponse;
 import lk.tideline.cleanup.dto.UserDtos.SuspensionRequest;
-import lk.tideline.cleanup.service.AuditService;
 import lk.tideline.cleanup.model.AccountStatus;
 import lk.tideline.cleanup.service.UserService;
 import org.springframework.http.ContentDisposition;
@@ -28,29 +25,14 @@ import java.util.List;
 public class AdminController {
 
     private final UserService userService;
-    private final AuditService audit;
 
-    public AdminController(UserService userService, AuditService audit) {
+    public AdminController(UserService userService) {
         this.userService = userService;
-        this.audit = audit;
     }
 
     @GetMapping("/users")
     public List<AdminUserResponse> users(@RequestParam(required = false) String query) {
         return userService.listForAdmin(query);
-    }
-
-    /** REQ-26, REQ-27 - the warning and restriction history of one account. */
-    @GetMapping("/users/{id}/sanctions")
-    public List<SanctionResponse> sanctions(@PathVariable Long id) {
-        return userService.sanctions(id);
-    }
-
-    /** NF-25 - the audit trail of approvals, rejections, restrictions and authority feedback. */
-    @GetMapping("/audit")
-    public List<AuditResponse> audit(@RequestParam(defaultValue = "0") int page,
-                                     @RequestParam(defaultValue = "50") int size) {
-        return audit.recent(page, size);
     }
 
     @PostMapping("/users/{id}/suspension")

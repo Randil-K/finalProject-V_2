@@ -1,8 +1,6 @@
 package lk.tideline.cleanup.controller;
 
-import jakarta.validation.Valid;
 import lk.tideline.cleanup.dto.AlertDtos.AlertResponse;
-import lk.tideline.cleanup.dto.AlertDtos.AlertResponseRequest;
 import lk.tideline.cleanup.service.AlertService;
 import lk.tideline.cleanup.service.CurrentUserService;
 import org.springframework.web.bind.annotation.*;
@@ -40,15 +38,5 @@ public class AlertController {
     @PostMapping("/{id}/read")
     public AlertResponse markRead(@PathVariable Long id) {
         return alertService.markRead(id, currentUser.require());
-    }
-
-    /** REQ-40 — accept or decline a location alert; the answer is recorded against the dispatch. */
-    @PostMapping("/{id}/response")
-    public AlertResponse respond(@PathVariable Long id, @Valid @RequestBody AlertResponseRequest request) {
-        alertService.respond(id, currentUser.require(), request.response());
-        return alertService.inbox(currentUser.require()).stream()
-                .filter(alert -> alert.id().equals(id))
-                .findFirst()
-                .orElseThrow();
     }
 }

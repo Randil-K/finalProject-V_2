@@ -96,7 +96,7 @@ class DiscussionTests {
 
     private Long report(User reporter) {
         return reportService.create(new CreateReportRequest("Plastic on the shore", "Bottles.", Severity.LOW,
-                "Galle", "Southern Province", 6.03, 80.21, null, null), reporter).id();
+                "Galle", "Southern Province", 6.03, 80.21, null), reporter).id();
     }
 
     private User user() {

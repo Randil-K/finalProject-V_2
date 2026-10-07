@@ -9,7 +9,6 @@ import lk.tideline.cleanup.dto.UserDtos.PublicProfileResponse;
 import lk.tideline.cleanup.dto.UserDtos.SuspensionRequest;
 import lk.tideline.cleanup.dto.UserDtos.UpdateDiverProfileRequest;
 import lk.tideline.cleanup.dto.UserDtos.UpdateProfileRequest;
-import lk.tideline.cleanup.dto.UserDtos;
 import lk.tideline.cleanup.dto.UserDtos.UserResponse;
 import lk.tideline.cleanup.model.AccountDocument;
 import lk.tideline.cleanup.model.AccountStatus;
@@ -17,12 +16,7 @@ import lk.tideline.cleanup.model.AlertType;
 import lk.tideline.cleanup.model.DiverProfile;
 import lk.tideline.cleanup.model.Role;
 import lk.tideline.cleanup.model.User;
-import lk.tideline.cleanup.model.AccountReviewAction;
-import lk.tideline.cleanup.model.SanctionType;
-import lk.tideline.cleanup.model.UserSanction;
 import lk.tideline.cleanup.repository.AccountDocumentRepository;
-import lk.tideline.cleanup.repository.AccountReviewActionRepository;
-import lk.tideline.cleanup.repository.UserSanctionRepository;
 import lk.tideline.cleanup.repository.CleanupProjectRepository;
 import lk.tideline.cleanup.repository.PollutionReportRepository;
 import lk.tideline.cleanup.repository.ProjectParticipantRepository;
@@ -47,11 +41,6 @@ public class UserService {
     private final DocumentStorageService storage;
     private final AlertService alertService;
     private final PollutionReportRepository reportRepository;
-    private final AccountReviewActionRepository accountReviews;
-    private final UserSanctionRepository sanctions;
-    private final AuditService audit;
-    private final RegionService regions;
-    private final CurrentUserService currentUser;
 
     public UserService(UserRepository userRepository,
                        ProjectParticipantRepository participantRepository,
@@ -59,12 +48,7 @@ public class UserService {
                        AccountDocumentRepository documentRepository,
                        DocumentStorageService storage,
                        AlertService alertService,
-                       PollutionReportRepository reportRepository,
-                       AccountReviewActionRepository accountReviews,
-                       UserSanctionRepository sanctions,
-                       AuditService audit,
-                       RegionService regions,
-                       CurrentUserService currentUser) {
+                       PollutionReportRepository reportRepository) {
         this.userRepository = userRepository;
         this.participantRepository = participantRepository;
         this.projectRepository = projectRepository;
@@ -72,11 +56,6 @@ public class UserService {
         this.storage = storage;
         this.alertService = alertService;
         this.reportRepository = reportRepository;
-        this.accountReviews = accountReviews;
-        this.sanctions = sanctions;
-        this.audit = audit;
-        this.regions = regions;
-        this.currentUser = currentUser;
     }
 
     /** Re-loads inside a transaction so the lazy diver profile can be mapped. */
@@ -159,7 +138,6 @@ public class UserService {
         }
         if (request.province() != null) {
             user.setProvince(request.province());
-            regions.apply(user);
         }
         if (request.city() != null) {
             user.setCity(request.city());
@@ -238,25 +216,8 @@ public class UserService {
             throw new IllegalArgumentException("Give a reason for the suspension so other administrators can see why.");
         }
 
-        User actor = currentUser.find().orElse(null);
-        String reason = request.suspended() ? request.reason().trim() : "Suspension lifted.";
-
         user.setSuspended(request.suspended());
-        user.setSuspensionReason(request.suspended() ? reason : null);
-
-        // REQ-26 / REQ-27 — the flag above is the current state; this is the history behind it,
-        // so lifting a restriction no longer erases the reason it was imposed.
-        UserSanction sanction = new UserSanction();
-        sanction.setUser(user);
-        sanction.setIssuedBy(actor);
-        sanction.setType(request.suspended() ? SanctionType.RESTRICTION : SanctionType.REINSTATEMENT);
-        sanction.setReason(reason);
-        sanctions.save(sanction);
-
-        audit.record(actor, request.suspended() ? AuditService.USER_SUSPENDED : AuditService.USER_REINSTATED,
-                "User", user.getId(),
-                (request.suspended() ? "Restricted " : "Reinstated ") + user.getEmail() + ": " + reason);
-
+        user.setSuspensionReason(request.suspended() ? request.reason().trim() : null);
         return AdminUserResponse.from(userRepository.save(user));
     }
 
@@ -309,28 +270,7 @@ public class UserService {
                     null, null, null);
         }
 
-        // REQ-4 / NF-25 — account_review_note keeps only the latest reason, so keep every decision.
-        User reviewer = currentUser.find().orElse(null);
-        AccountReviewAction action = new AccountReviewAction();
-        action.setUser(user);
-        action.setReviewer(reviewer);
-        action.setDecision(user.getAccountStatus());
-        action.setReason(user.getAccountReviewNote());
-        accountReviews.save(action);
-
-        audit.record(reviewer, AuditService.ACCOUNT_REVIEWED, "User", user.getId(),
-                "Registration " + user.getAccountStatus() + " for " + user.getEmail()
-                        + (user.getAccountReviewNote() == null ? "" : ": " + user.getAccountReviewNote()));
-
         return AccountReviewResponse.from(userRepository.save(user));
-    }
-
-    /** REQ-26, REQ-27 — the warning and restriction history of an account, for administrators. */
-    @Transactional(readOnly = true)
-    public List<UserDtos.SanctionResponse> sanctions(Long userId) {
-        return sanctions.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(UserDtos.SanctionResponse::from)
-                .toList();
     }
 
     @Transactional(readOnly = true)

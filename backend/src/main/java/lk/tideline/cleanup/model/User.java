@@ -37,12 +37,6 @@ public class User {
     private Role role = Role.CITIZEN;
 
     private String province;
-
-    /** Region key resolved from the province text on save; null if it matches no lookup row. */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "province_id")
-    private Province provinceRef;
-
     private String city;
 
     private Double latitude;

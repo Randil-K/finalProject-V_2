@@ -7,8 +7,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "project_updates")
@@ -41,11 +39,6 @@ public class ProjectUpdate {
 
     /** Completion recorded with this update; drives the project's progress bar. */
     private Integer completionPercentage;
-
-    /** REQ-45 — the photos for this stage; image_url above is the original single-photo field. */
-    @OneToMany(mappedBy = "update", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("position ASC")
-    private List<ProjectUpdateImage> images = new ArrayList<>();
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();

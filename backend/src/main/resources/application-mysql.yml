@@ -7,17 +7,9 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
 
-  # InnoDB + utf8mb4 for every table the migrations create.
-  flyway:
-    placeholders:
-      tableopts: 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
-      ts: datetime(6)
-      bool: bit
-
   jpa:
     hibernate:
-      # Flyway owns the schema; Hibernate only checks the entities still match it.
-      ddl-auto: validate
+      ddl-auto: update
     properties:
       hibernate.format_sql: false
       hibernate.dialect: lk.tideline.cleanup.config.dialect.TidelineMySQLDialect

@@ -74,11 +74,6 @@ export default function AuthorityShell() {
         </nav>
 
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {/* The console has its own sidebar, so without this an officer who comes in here can
-              only leave by signing out. Mirrors the "Console" button on the volunteer shell. */}
-          <Button variant="inverse" size="sm" iconLeft="chevron-left" fullWidth onClick={() => navigate('/app')}>
-            Back to app
-          </Button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 var(--space-2)' }}>
             <Avatar name={user?.fullName || ''} src={mediaUrl(user?.avatarUrl)} role="authority" size="sm" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -113,15 +108,13 @@ export default function AuthorityShell() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', minWidth: 0 }}>
             <Button variant="secondary" size="sm" iconLeft="chevron-left" onClick={() => navigate('/app')}>
-              Back to app
+              Back to feed
             </Button>
-            <span style={{ font: 'var(--text-h3)', color: 'var(--text-strong)' }}>
-              {user?.role === 'AUTHORITY' ? 'Government officer console' : 'Administration console'}
+            <span style={{ font: 'var(--text-h3)', color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.role === 'AUTHORITY' ? 'Government officer console' : 'Administrator console'}
             </span>
           </div>
-          <span style={{ font: 'var(--text-caption)', color: 'var(--text-muted)' }}>
-            {user?.organizationName || (user?.role === 'ADMIN' ? 'Tideline administration' : 'Marine Environment Protection Authority')}
-          </span>
+          <span style={{ font: 'var(--text-caption)', color: 'var(--text-muted)' }}>Marine Environment Protection Authority</span>
         </header>
         <main style={{ flex: 1, padding: 'var(--space-6)', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
           <Outlet />

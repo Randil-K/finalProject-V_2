@@ -4,7 +4,6 @@ import lk.tideline.cleanup.model.*;
 import lk.tideline.cleanup.repository.*;
 import lk.tideline.cleanup.service.AlertService;
 import lk.tideline.cleanup.service.DocumentStorageService;
-import lk.tideline.cleanup.service.RegionService;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -35,19 +34,18 @@ public class DemoDataSeeder {
                                           OpportunityRepository opportunities,
                                           DocumentStorageService storage,
                                           AlertService alerts,
-                                          RegionService regions,
                                           PasswordEncoder encoder) {
         return args -> {
             if (users.count() > 0) {
                 return;
             }
 
-            User admin = user(users, regions, encoder, "System Administrator", "admin@tideline.lk",
+            User admin = user(users, encoder, "System Administrator", "admin@tideline.lk",
                     Role.ADMIN, "Western Province", "Colombo", 6.9271, 79.8612);
-            User officer = user(users, regions, encoder, "D. Bandara", "officer@mepa.gov.lk",
+            User officer = user(users, encoder, "D. Bandara", "officer@mepa.gov.lk",
                     Role.AUTHORITY, "Western Province", "Colombo", 6.9271, 79.8612);
 
-            User hiruna = user(users, regions, encoder, "Hiruna Perera", "hiruna@example.lk",
+            User hiruna = user(users, encoder, "Hiruna Perera", "hiruna@example.lk",
                     Role.DIVER, "Western Province", "Negombo", 7.2083, 79.8358);
             diverProfile(hiruna, CertificationLevel.ADVANCED_OPEN_WATER, 4, "Own BCD, regulator, wetsuit",
                     List.of("Western Province", "North Western Province"));
@@ -55,64 +53,64 @@ public class DemoDataSeeder {
             users.save(hiruna);
 
             // More verified volunteer divers for demos.
-            User kavindu = user(users, regions, encoder, "Kavindu Fernando", "kavindu@example.lk",
+            User kavindu = user(users, encoder, "Kavindu Fernando", "kavindu@example.lk",
                     Role.DIVER, "Southern Province", "Hikkaduwa", 6.1395, 80.1063);
             diverProfile(kavindu, CertificationLevel.RESCUE_DIVER, 7, "Full kit, dive computer, lift bags",
                     List.of("Southern Province"));
             attachCertificate(storage, kavindu, "PADI-Rescue-Diver.pdf", "PADI Rescue Diver - Kavindu Fernando");
             users.save(kavindu);
 
-            User tharushi = user(users, regions, encoder, "Tharushi Silva", "tharushi@example.lk",
+            User tharushi = user(users, encoder, "Tharushi Silva", "tharushi@example.lk",
                     Role.DIVER, "Eastern Province", "Trincomalee", 8.5711, 81.2335);
             diverProfile(tharushi, CertificationLevel.OPEN_WATER, 2, "Mask, fins, wetsuit",
                     List.of("Eastern Province", "Northern Province"));
             attachCertificate(storage, tharushi, "PADI-Open-Water.pdf", "PADI Open Water - Tharushi Silva");
             users.save(tharushi);
 
-            User dinuka = user(users, regions, encoder, "Dinuka Rajapaksha", "dinuka@example.lk",
+            User dinuka = user(users, encoder, "Dinuka Rajapaksha", "dinuka@example.lk",
                     Role.DIVER, "North Western Province", "Kalpitiya", 8.2300, 79.7600);
             diverProfile(dinuka, CertificationLevel.DIVEMASTER, 9, "Full kit, underwater cutting tools",
                     List.of("North Western Province", "Western Province"));
             attachCertificate(storage, dinuka, "PADI-Divemaster.pdf", "PADI Divemaster - Dinuka Rajapaksha");
             users.save(dinuka);
 
-            User sanjeewa = user(users, regions, encoder, "Sanjeewa Alwis", "sanjeewa@example.lk",
+            User sanjeewa = user(users, encoder, "Sanjeewa Alwis", "sanjeewa@example.lk",
                     Role.DIVER, "Northern Province", "Jaffna", 9.6615, 80.0255);
             diverProfile(sanjeewa, CertificationLevel.INSTRUCTOR, 12, "Full kit, twin tanks, surface marker buoys",
                     List.of("Northern Province", "Eastern Province"));
             attachCertificate(storage, sanjeewa, "PADI-Open-Water-Instructor.pdf", "PADI Open Water Scuba Instructor - Sanjeewa Alwis");
             users.save(sanjeewa);
 
-            User nethmi = user(users, regions, encoder, "Nethmi Bandara", "nethmi@example.lk",
+            User nethmi = user(users, encoder, "Nethmi Bandara", "nethmi@example.lk",
                     Role.DIVER, "Southern Province", "Tangalle", 6.0240, 80.7940);
             diverProfile(nethmi, CertificationLevel.ADVANCED_OPEN_WATER, 3, "Own mask, fins, wetsuit, dive light",
                     List.of("Southern Province", "Uva Province"));
             attachCertificate(storage, nethmi, "PADI-Advanced-Open-Water.pdf", "PADI Advanced Open Water - Nethmi Bandara");
             users.save(nethmi);
 
-            User ruwan = user(users, regions, encoder, "Ruwan Dissanayake", "ruwan@example.lk",
+            User ruwan = user(users, encoder, "Ruwan Dissanayake", "ruwan@example.lk",
                     Role.DIVER, "Western Province", "Wadduwa", 6.6600, 79.9300);
             diverProfile(ruwan, CertificationLevel.RESCUE_DIVER, 5, "Full kit, lift bags, hand tools",
                     List.of("Western Province", "Southern Province"));
             attachCertificate(storage, ruwan, "PADI-Rescue-Diver.pdf", "PADI Rescue Diver - Ruwan Dissanayake");
             users.save(ruwan);
 
-            User kasun = user(users, regions, encoder, "Kasun Silva", "kasun@example.lk",
+            User kasun = user(users, encoder, "Kasun Silva", "kasun@example.lk",
                     Role.CITIZEN, "Western Province", "Negombo", 7.2100, 79.8400);
-            User achini = user(users, regions, encoder, "Achini Fernando", "achini@example.lk",
+            User achini = user(users, encoder, "Achini Fernando", "achini@example.lk",
                     Role.CITIZEN, "Eastern Province", "Trincomalee", 8.5874, 81.2152);
-            User ishara = user(users, regions, encoder, "Ishara Gunawardena", "ishara@example.lk",
+            User ishara = user(users, encoder, "Ishara Gunawardena", "ishara@example.lk",
                     Role.CITIZEN, "Western Province", "Mount Lavinia", 6.8389, 79.8653);
 
             // Community members whose votes carry the demo reports past 5 confirmations.
             List<User> community = List.of(
-                    user(users, regions, encoder, "Nuwan Jayasuriya", "nuwan@example.lk", Role.CITIZEN, "Western Province", "Negombo", 7.2150, 79.8420),
-                    user(users, regions, encoder, "Dilini Rathnayake", "dilini@example.lk", Role.CITIZEN, "North Western Province", "Kalpitiya", 8.2300, 79.7700),
-                    user(users, regions, encoder, "Pradeep Kumara", "pradeep@example.lk", Role.CITIZEN, "Eastern Province", "Trincomalee", 8.5800, 81.2200),
-                    user(users, regions, encoder, "Hasini Weerasinghe", "hasini@example.lk", Role.CITIZEN, "Southern Province", "Galle", 6.0500, 80.2200),
-                    user(users, regions, encoder, "Malith Senanayake", "malith@example.lk", Role.CITIZEN, "Western Province", "Colombo", 6.9300, 79.8500));
+                    user(users, encoder, "Nuwan Jayasuriya", "nuwan@example.lk", Role.CITIZEN, "Western Province", "Negombo", 7.2150, 79.8420),
+                    user(users, encoder, "Dilini Rathnayake", "dilini@example.lk", Role.CITIZEN, "North Western Province", "Kalpitiya", 8.2300, 79.7700),
+                    user(users, encoder, "Pradeep Kumara", "pradeep@example.lk", Role.CITIZEN, "Eastern Province", "Trincomalee", 8.5800, 81.2200),
+                    user(users, encoder, "Hasini Weerasinghe", "hasini@example.lk", Role.CITIZEN, "Southern Province", "Galle", 6.0500, 80.2200),
+                    user(users, encoder, "Malith Senanayake", "malith@example.lk", Role.CITIZEN, "Western Province", "Colombo", 6.9300, 79.8500));
 
-            User ngo = user(users, regions, encoder, "Blue Resurgence", "hello@blueresurgence.lk",
+            User ngo = user(users, encoder, "Blue Resurgence", "hello@blueresurgence.lk",
                     Role.ORGANIZATION, "Southern Province", "Galle", 6.0535, 80.2210);
             ngo.setOrganizationName("Blue Resurgence NGO");
             ngo.setOrganizationType(OrganizationType.NGO);
@@ -120,7 +118,7 @@ public class DemoDataSeeder {
             users.save(ngo);
 
             // Two applications waiting in the administrator's verification queue.
-            User tharindu = user(users, regions, encoder, "Tharindu Wickrama", "tharindu@example.lk",
+            User tharindu = user(users, encoder, "Tharindu Wickrama", "tharindu@example.lk",
                     Role.DIVER, "Southern Province", "Unawatuna", 6.0100, 80.2490);
             tharindu.setAccountStatus(AccountStatus.PENDING_REVIEW);
             diverProfile(tharindu, CertificationLevel.RESCUE_DIVER, 6, "Full kit, dive computer", List.of("Southern Province"));
@@ -128,7 +126,7 @@ public class DemoDataSeeder {
             attachCertificate(storage, tharindu, "Emergency-First-Response.pdf", "Emergency First Response - Tharindu Wickrama");
             users.save(tharindu);
 
-            User coralGuard = user(users, regions, encoder, "Coral Guard Lanka", "team@coralguard.example.org",
+            User coralGuard = user(users, encoder, "Coral Guard Lanka", "team@coralguard.example.org",
                     Role.ORGANIZATION, "Eastern Province", "Trincomalee", 8.5700, 81.2300);
             coralGuard.setAccountStatus(AccountStatus.PENDING_REVIEW);
             coralGuard.setOrganizationName("Coral Guard Lanka");
@@ -141,25 +139,25 @@ public class DemoDataSeeder {
             alerts.send(admin, AlertType.ACCOUNT_APPLICATION, "New organisation to verify",
                     "Coral Guard Lanka registered. Check https://coralguard.example.org before approving.", null, null, null);
 
-            PollutionReport negombo = report(reports, regions, kasun,
+            PollutionReport negombo = report(reports, kasun,
                     "Plastic debris along the tideline near the fish market",
                     "Large drift of plastic packaging and net fragments washed up after the weekend tide, "
                             + "roughly 80m stretch near the fish market jetty.",
                     Severity.HIGH, "Negombo", "Western Province", 7.2083, 79.8358, 3);
 
-            PollutionReport trinco = report(reports, regions, achini,
+            PollutionReport trinco = report(reports, achini,
                     "Oil sheen and dead fish near the harbour outflow",
                     "Visible oil sheen spreading from the harbour outflow pipe, several dead fish observed "
                             + "along a 40m stretch of shoreline.",
                     Severity.CRITICAL, "Trincomalee", "Eastern Province", 8.5874, 81.2152, 5);
 
-            PollutionReport kalpitiya = report(reports, regions, hiruna,
+            PollutionReport kalpitiya = report(reports, hiruna,
                     "Discarded fishing nets tangled on the reef edge",
                     "Ghost nets caught on the reef edge, roughly 15m from the dive site mooring. "
                             + "Needs diver support to remove safely.",
                     Severity.MEDIUM, "Kalpitiya", "North Western Province", 8.2333, 79.7667, 4);
 
-            report(reports, regions, ishara,
+            report(reports, ishara,
                     "Household waste dumped behind the dune vegetation",
                     "Small pile of household waste bags left behind the dune grass, likely dumped overnight.",
                     Severity.LOW, "Mount Lavinia", "Western Province", 6.8389, 79.8653, 2);
@@ -199,7 +197,6 @@ public class DemoDataSeeder {
             project.setCompletionPercentage(62);
             project.setLocationName("Negombo");
             project.setProvince("Western Province");
-            regions.apply(project);
             project.setLatitude(7.2083);
             project.setLongitude(79.8358);
             project.setStartedAt(daysAgo(2));
@@ -262,8 +259,8 @@ public class DemoDataSeeder {
         return all;
     }
 
-    private User user(UserRepository users, RegionService regions, PasswordEncoder encoder, String name,
-                      String email, Role role, String province, String city, double lat, double lon) {
+    private User user(UserRepository users, PasswordEncoder encoder, String name, String email,
+                      Role role, String province, String city, double lat, double lon) {
         User user = new User();
         user.setFullName(name);
         user.setEmail(email);
@@ -273,7 +270,6 @@ public class DemoDataSeeder {
         user.setCity(city);
         user.setLatitude(lat);
         user.setLongitude(lon);
-        regions.apply(user);
         return users.save(user);
     }
 
@@ -336,8 +332,8 @@ public class DemoDataSeeder {
         participants.save(participant);
     }
 
-    private PollutionReport report(PollutionReportRepository reports, RegionService regions, User reporter,
-                                   String title, String description, Severity severity, String location,
+    private PollutionReport report(PollutionReportRepository reports, User reporter, String title,
+                                   String description, Severity severity, String location,
                                    String province, double lat, double lon, int photoCount) {
         PollutionReport report = new PollutionReport();
         report.setTitle(title);
@@ -348,7 +344,6 @@ public class DemoDataSeeder {
         report.setLatitude(lat);
         report.setLongitude(lon);
         report.setReporter(reporter);
-        regions.apply(report);
         report.setReference("TMP-" + title.hashCode());
 
         for (int i = 1; i <= photoCount; i++) {

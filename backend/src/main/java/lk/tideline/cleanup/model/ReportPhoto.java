@@ -29,8 +29,5 @@ public class ReportPhoto {
     @Column(length = 100)
     private String contentType;
 
-    /** NF-24 — recorded for uploaded evidence; null for an external URL. */
-    private Long sizeBytes;
-
     private String caption;
 }

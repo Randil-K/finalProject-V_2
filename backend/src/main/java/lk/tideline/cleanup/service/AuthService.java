@@ -33,22 +33,19 @@ public class AuthService {
     private final UserService userService;
     private final DocumentStorageService storage;
     private final AlertService alertService;
-    private final RegionService regions;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        UserService userService,
                        DocumentStorageService storage,
-                       AlertService alertService,
-                       RegionService regions) {
+                       AlertService alertService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.userService = userService;
         this.storage = storage;
         this.alertService = alertService;
-        this.regions = regions;
     }
 
     /**
@@ -109,7 +106,6 @@ public class AuthService {
         user.setOrganizationType(role == Role.ORGANIZATION ? request.organizationType() : null);
         user.setWebsiteUrl(website);
         user.setAccountStatus(role == Role.CITIZEN ? AccountStatus.APPROVED : AccountStatus.PENDING_REVIEW);
-        regions.apply(user);
 
         if (role == Role.DIVER) {
             DiverProfile profile = new DiverProfile();

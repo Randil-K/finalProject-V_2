@@ -14,11 +14,6 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-utideline", "-ptideline-local"]
       interval: 5s
       retries: 30
-    # Bound to loopback so a database GUI on this machine (MySQL Workbench, DBeaver) can connect
-    # to localhost:33306, without opening the database to the network. 33306 rather than 3306 so it
-    # does not clash with a MySQL already installed on the host.
-    ports:
-      - "127.0.0.1:33306:3306"
     volumes:
       - db-data:/var/lib/mysql
 

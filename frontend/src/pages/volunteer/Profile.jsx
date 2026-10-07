@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Input, Select, Switch, Tag, Alert } from '../../design-system';
 import ProfileOverview, { DetailRow, DetailSection } from '../../components/ProfileOverview.jsx';
 import { Async } from '../../components/AsyncState.jsx';
@@ -15,28 +15,9 @@ function formFrom(user) {
     phone: user?.phone || '',
     province: user?.province || '',
     city: user?.city || '',
-    // Held as text so the fields can be cleared while typing; parsed on save.
     latitude: user?.latitude ?? '',
     longitude: user?.longitude ?? '',
   };
-}
-
-/** Empty means "leave it unset"; anything else has to be a number in range. */
-function readCoordinates(form) {
-  const lat = String(form.latitude).trim();
-  const lon = String(form.longitude).trim();
-  if (!lat && !lon) return { latitude: null, longitude: null };
-  if (!lat || !lon) throw new Error('Enter both a latitude and a longitude, or leave both empty.');
-
-  const latitude = Number(lat);
-  const longitude = Number(lon);
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-    throw new Error('Latitude has to be a number between -90 and 90.');
-  }
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    throw new Error('Longitude has to be a number between -180 and 180.');
-  }
-  return { latitude, longitude };
 }
 
 function diverFrom(user) {
@@ -49,14 +30,10 @@ function diverFrom(user) {
 
 export default function Profile() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, setUser, logout } = useAuth();
-  // "Add my location" on the feed sends people here to do one specific thing, so open the form
-  // rather than the read-only overview they would otherwise land on.
-  const askedForLocation = new URLSearchParams(location.search).get('edit') === 'location';
   const profileState = useApi(() => (user ? api.users.profile(user.id) : Promise.resolve(null)), [user]);
 
-  const [editing, setEditing] = React.useState(askedForLocation);
+  const [editing, setEditing] = React.useState(false);
   const [form, setForm] = React.useState(() => formFrom(user));
   const [diver, setDiver] = React.useState(() => diverFrom(user));
   const [regions, setRegions] = React.useState(user?.diverProfile?.preferredRegions || []);
@@ -91,11 +68,12 @@ export default function Profile() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          const latitude = Number(position.coords.latitude.toFixed(6));
-          const longitude = Number(position.coords.longitude.toFixed(6));
-          // Show what was captured in the fields too, so it can be checked or corrected.
-          setForm((f) => ({ ...f, latitude, longitude }));
-          setUser(await api.users.updateProfile({ latitude, longitude }));
+          const updated = await api.users.updateProfile({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+          setUser(updated);
+          setForm((f) => ({ ...f, latitude: updated.latitude, longitude: updated.longitude }));
           setStatus({ tone: 'success', title: 'Location saved', message: "You'll get alerts for reports and cleanups within 5 km." });
         } catch (error) {
           setStatus({ tone: 'danger', title: 'Location not saved', message: error.message });
@@ -112,18 +90,15 @@ export default function Profile() {
   }
 
   async function save() {
-    let coordinates;
-    try {
-      coordinates = readCoordinates(form);
-    } catch (error) {
-      setStatus({ tone: 'warning', title: 'Check your location', message: error.message });
-      return;
-    }
-
     setBusy(true);
     setStatus(null);
     try {
-      let updated = await api.users.updateProfile({ ...form, ...coordinates, availableForAlerts: available });
+      let updated = await api.users.updateProfile({
+        ...form,
+        latitude: form.latitude === '' ? null : Number(form.latitude),
+        longitude: form.longitude === '' ? null : Number(form.longitude),
+        availableForAlerts: available,
+      });
       if (isDiver) {
         updated = await api.users.updateDiverProfile({
           certificationLevel: diver.certificationLevel || null,
@@ -185,13 +160,7 @@ export default function Profile() {
                 ) : null}
                 {isDiver ? <DetailRow icon="life-buoy" label="Equipment">{user.diverProfile?.equipment || '—'}</DetailRow> : null}
                 <DetailRow icon="map-pin" label="Alert location">
-                  {hasLocation ? (
-                    `${user.latitude.toFixed(4)}° N, ${user.longitude.toFixed(4)}° E`
-                  ) : (
-                    <Button variant="secondary" size="sm" iconLeft="map-pin" onClick={startEditing}>
-                      Add my location
-                    </Button>
-                  )}
+                  {hasLocation ? `${user.latitude.toFixed(4)}° N, ${user.longitude.toFixed(4)}° E` : 'Not set'}
                 </DetailRow>
                 <DetailRow icon="bell" label="Cleanup alerts">{user.availableForAlerts ? 'On' : 'Off'}</DetailRow>
               </DetailSection>
@@ -217,61 +186,41 @@ export default function Profile() {
         <Input label="Full name" value={form.fullName} onChange={set('fullName')} />
         <Input label="Email" type="email" value={user.email} disabled />
         <Input label="Phone" type="tel" value={form.phone} onChange={set('phone')} />
-        <Input label="City or town" iconLeft="map-pin" value={form.city} onChange={set('city')} />
-        <Select label="Province" placeholder="Select your province" options={PROVINCES} value={form.province} onChange={set('province')} />
       </section>
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Alerts</span>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)' }}>
-          <span style={{ font: 'var(--text-body-sm)', color: 'var(--text-body-color)' }}>
-            {hasLocation ? `${user.latitude.toFixed(4)}° N, ${user.longitude.toFixed(4)}° E` : 'No location saved'}
-          </span>
+        <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Location</span>
+        <Input label="City or town" iconLeft="map-pin" placeholder="e.g. Negombo" value={form.city} onChange={set('city')} />
+        <Select label="Province" placeholder="Select your province" options={PROVINCES} value={form.province} onChange={set('province')} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)' }}>
           <Button variant="secondary" size="sm" iconLeft="map-pin" onClick={captureLocation} disabled={locating} style={{ alignSelf: 'flex-start' }}>
             {locating ? 'Locating…' : hasLocation ? 'Update to my current location' : 'Use my current location'}
           </Button>
-
-          {/* Typing the coordinates is the fallback when the browser will not share a location,
-              and the only way to pick somewhere other than where you happen to be sitting. */}
-          <span style={{ font: 'var(--text-caption)', color: 'var(--text-muted)', marginTop: 4 }}>
-            Or enter the coordinates yourself. Right-click a spot in Google Maps to copy them.
-          </span>
-          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
             <Input
               label="Latitude"
               type="number"
-              step="any"
-              min="-90"
-              max="90"
-              placeholder="e.g. 7.2083"
+              step="0.0001"
+              placeholder="6.9271"
               value={form.latitude}
               onChange={set('latitude')}
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 140 }}
             />
             <Input
               label="Longitude"
               type="number"
-              step="any"
-              min="-180"
-              max="180"
-              placeholder="e.g. 79.8358"
+              step="0.0001"
+              placeholder="79.8612"
               value={form.longitude}
               onChange={set('longitude')}
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 140 }}
             />
           </div>
-          {form.latitude !== '' || form.longitude !== '' ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              iconLeft="x"
-              onClick={() => setForm((f) => ({ ...f, latitude: '', longitude: '' }))}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              Clear location
-            </Button>
-          ) : null}
         </div>
+      </section>
+
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Alerts</span>
         <div style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)' }}>
           <Switch label="Available for cleanup alerts" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
         </div>

@@ -41,8 +41,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/reports", "/api/reports/*", "/api/reports/evidence/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/projects", "/api/projects/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/analytics/summary", "/api/users/avatars/*").permitAll()
-                        // Reference data: the nine provinces and 25 districts, seeded by migration V3.
-                        .requestMatchers(HttpMethod.GET, "/api/regions/*").permitAll()
                         .requestMatchers("/h2-console/**", "/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))

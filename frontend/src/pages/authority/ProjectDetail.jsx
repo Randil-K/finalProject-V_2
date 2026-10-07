@@ -55,7 +55,7 @@ export default function ProjectDetail() {
 
             <ProjectStatusBar project={project} />
 
-            {user?.role === 'ADMIN' && project.status !== 'COMPLETED' ? (
+            {user?.role === 'AUTHORITY' && project.status !== 'COMPLETED' ? (
               <ResourcePlanner key={project.resources?.finalizedAt || 'draft'} project={project} onSaved={state.setData} />
             ) : (
               <>

@@ -41,7 +41,7 @@ export default function Feed() {
         <Alert tone="info" title="Add your location to hear about pollution near you">
           <span style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
             New reports and cleanups alert people within 5 km.
-            <Button variant="secondary" size="sm" iconLeft="map-pin" onClick={() => navigate('/app/profile?edit=location')}>
+            <Button variant="secondary" size="sm" iconLeft="map-pin" onClick={() => navigate('/app/profile')}>
               Add my location
             </Button>
           </span>

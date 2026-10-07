@@ -46,9 +46,9 @@ public class ProjectController {
         return projectService.mark(id, participantId, request.mark(), currentUser.require());
     }
 
-    /** Administrators assign the volunteers, divers and equipment a project needs. */
+    /** The government officer revises the volunteers, divers and equipment they assigned on approval. */
     @PutMapping("/{id}/resources")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('AUTHORITY')")
     public ProjectResponse updateResources(@PathVariable Long id, @Valid @RequestBody ResourcesRequest request) {
         return projectService.updateResources(id, request, currentUser.require());
     }
@@ -57,11 +57,5 @@ public class ProjectController {
     @PostMapping("/{id}/updates")
     public ProjectResponse addUpdate(@PathVariable Long id, @Valid @RequestBody ProjectUpdateRequest request) {
         return projectService.addUpdate(id, request, currentUser.require());
-    }
-
-    /** REQ-41 - widen the alert radius when turnout is short. Owner or administrator. */
-    @PostMapping("/{id}/alerts/escalate")
-    public ProjectResponse escalateAlerts(@PathVariable Long id) {
-        return projectService.escalateAlerts(id, currentUser.require());
     }
 }

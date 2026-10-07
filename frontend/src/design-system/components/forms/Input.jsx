@@ -20,7 +20,7 @@ function controlStyle({ focus, invalid, disabled, size }) {
   };
 }
 
-export function Input({ label, hint, error, required, size = 'md', iconLeft, suffix, disabled, id, style, ...rest }) {
+export function Input({ label, hint, error, required, size = 'md', iconLeft, suffix, trailing, disabled, id, style, ...rest }) {
   const [focus, setFocus] = React.useState(false);
   const generatedId = React.useId();
   const inputId = id || generatedId;
@@ -40,12 +40,15 @@ export function Input({ label, hint, error, required, size = 'md', iconLeft, suf
           style={{
             ...controlStyle({ focus, invalid: Boolean(error), disabled, size }),
             paddingLeft: iconLeft ? 36 : 12,
-            paddingRight: suffix ? 56 : 12,
+            paddingRight: trailing ? 44 : suffix ? 56 : 12,
           }}
           {...rest}
         />
         {suffix ? (
           <span style={{ position: 'absolute', right: 12, font: 'var(--text-caption)', color: 'var(--text-muted)' }}>{suffix}</span>
+        ) : null}
+        {trailing ? (
+          <span style={{ position: 'absolute', right: 6, display: 'flex' }}>{trailing}</span>
         ) : null}
       </div>
     </Field>
