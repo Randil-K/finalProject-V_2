@@ -47,6 +47,12 @@ public class Alert {
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean critical = false;
 
+    /** Set when the recipient answered a call for help; null while it is still open. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(length = 20)
+    private AlertReply reply;
+
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 }

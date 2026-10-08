@@ -44,6 +44,14 @@ public class TidelineProperties {
     @Getter
     @Setter
     public static class Alerts {
+        /** How far a call for help reaches once a cleanup's resources are set. */
+        private double recruitmentRadiusKm = 15;
+        /** How far it reaches after being widened because too few people joined. */
+        private double widenedRadiusKm = 25;
+        /** How long to wait for people before widening the call. */
+        private int widenAfterDays = 7;
+        /** How often to look for calls that have waited long enough. */
+        private int widenScanMinutes = 15;
         private double initialRadiusKm = 5;
     }
 

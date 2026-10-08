@@ -60,7 +60,7 @@ export default function ResourcePlanner({ project, onSaved }) {
           </Button>
         ) : null}
         <Button iconLeft="check" disabled={Boolean(busy)} onClick={() => save(true)}>
-          {busy === 'publish' ? 'Saving…' : finalized ? 'Update resources' : 'Finalize resources'}
+          {busy === 'publish' ? 'Saving…' : 'Assign resources'}
         </Button>
       </div>
     </div>

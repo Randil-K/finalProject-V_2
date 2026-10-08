@@ -1,5 +1,7 @@
 package lk.tideline.cleanup.controller;
 
+import jakarta.validation.Valid;
+import lk.tideline.cleanup.dto.AlertDtos.AlertReplyRequest;
 import lk.tideline.cleanup.dto.AlertDtos.AlertResponse;
 import lk.tideline.cleanup.service.AlertService;
 import lk.tideline.cleanup.service.CurrentUserService;
@@ -33,6 +35,12 @@ public class AlertController {
     @PostMapping("/read-all")
     public Map<String, Integer> markAllRead() {
         return Map.of("marked", alertService.markAllRead(currentUser.require()));
+    }
+
+    /** Module 6 — answering a call for help: join the cleanup, or let it pass. */
+    @PostMapping("/{id}/reply")
+    public AlertResponse reply(@PathVariable Long id, @Valid @RequestBody AlertReplyRequest request) {
+        return alertService.reply(id, request, currentUser.require());
     }
 
     @PostMapping("/{id}/read")

@@ -17,7 +17,7 @@ function Need({ icon, label, needed, joined }) {
   );
 }
 
-/** The volunteers, divers and equipment an administrator assigned to a project. */
+/** What the government officer asked for, and how much of it people have pledged. */
 export default function ProjectResources({ project }) {
   const resources = project.resources;
   if (!resources) return null;
@@ -28,7 +28,10 @@ export default function ProjectResources({ project }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', padding: 'var(--space-5)', borderRadius: 'var(--radius-lg)', background: 'var(--surface-card)', border: '1px solid var(--border-subtle)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Required resources</span>
-        {!resources.finalized ? <Badge tone="warning" size="sm">Draft</Badge> : null}
+        {!resources.finalized ? <Badge tone="warning" size="sm">Draft</Badge>
+          : project.resourcesGatheredAt ? <Badge tone="success" size="sm">All gathered</Badge>
+            : project.recruitmentRadiusKm ? <Badge tone="accent" size="sm">Asking within {project.recruitmentRadiusKm} km</Badge>
+              : null}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--space-3)' }}>
@@ -45,7 +48,14 @@ export default function ProjectResources({ project }) {
               style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: 'var(--space-2) 0', borderTop: '1px solid var(--border-subtle)', font: 'var(--text-body-sm)' }}
             >
               <span style={{ color: 'var(--text-heading)' }}>{item.name}</span>
-              <span style={{ font: '600 13px/1.5 var(--font-mono)', color: 'var(--text-strong)' }}>× {item.quantity}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Badge tone={item.securedQuantity >= item.quantity ? 'success' : 'warning'} size="sm">
+                  {item.securedQuantity >= item.quantity
+                    ? 'Secured'
+                    : `${item.securedQuantity} of ${item.quantity} pledged`}
+                </Badge>
+                <span style={{ font: '600 13px/1.5 var(--font-mono)', color: 'var(--text-strong)' }}>× {item.quantity}</span>
+              </span>
             </div>
           ))}
         </div>

@@ -70,9 +70,9 @@ export const api = {
     /** decision: APPROVED (sends it to the government officer), REJECTED or MORE_INFO_REQUESTED. */
     moderate: (id, decision, comment) =>
       request(`/api/reports/${id}/moderation`, { method: 'POST', body: { decision, comment } }),
-    /** decision: APPROVED (creates the project, and `resources` is required), REJECTED or MORE_INFO_REQUESTED. */
-    authorityDecision: (id, decision, comment, resources = null) =>
-      request(`/api/reports/${id}/authority-decision`, { method: 'POST', body: { decision, comment, resources } }),
+    /** decision: APPROVED (creates the project), REJECTED or MORE_INFO_REQUESTED. */
+    authorityDecision: (id, decision, comment) =>
+      request(`/api/reports/${id}/authority-decision`, { method: 'POST', body: { decision, comment } }),
   },
 
   projects: {
@@ -93,6 +93,9 @@ export const api = {
     unreadCount: () => request('/api/alerts/unread-count'),
     markRead: (id) => request(`/api/alerts/${id}/read`, { method: 'POST' }),
     markAllRead: () => request('/api/alerts/read-all', { method: 'POST' }),
+    /** Answer a call for help: reply 'JOINED' (optionally pledging equipment) or 'IGNORED'. */
+    reply: (id, reply, equipment = []) =>
+      request(`/api/alerts/${id}/reply`, { method: 'POST', body: { reply, equipment } }),
   },
 
   opportunities: {

@@ -2,8 +2,6 @@ package lk.tideline.cleanup;
 
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectResponse;
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectUpdateRequest;
-import lk.tideline.cleanup.dto.ProjectDtos.EquipmentLine;
-import lk.tideline.cleanup.dto.ReportDtos.ApprovalResources;
 import lk.tideline.cleanup.dto.ReportDtos.AuthorityDecisionRequest;
 import lk.tideline.cleanup.dto.ReportDtos.ReportResponse;
 import lk.tideline.cleanup.dto.UserDtos.OwnedProject;
@@ -32,10 +30,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @TestPropertySource(properties = {"tideline.seed-demo-data=false", "tideline.uploads.directory=target/test-uploads"})
 class CleanupLoopTests {
 
-    /** Every approval commits the resources the cleanup needs. */
-    private static final ApprovalResources RESOURCES =
-            new ApprovalResources(10, 2, List.of(new EquipmentLine("Gloves", 20)));
-
     @Autowired
     private UserRepository users;
 
@@ -60,7 +54,7 @@ class CleanupLoopTests {
         PollutionReport report = escalatedReport(reporter);
 
         ReportResponse decided = reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved.", RESOURCES), user(Role.AUTHORITY));
+                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved."), user(Role.AUTHORITY));
 
         assertThat(decided.status()).isEqualTo(ReportStatus.APPROVED);
         assertThat(decided.authorityDecision()).isEqualTo(ReviewDecision.APPROVED);
@@ -128,7 +122,7 @@ class CleanupLoopTests {
         ProjectResponse project = approve(reporter);
 
         assertThatThrownBy(() -> reportService.decideAsAuthority(project.reportId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Again.", RESOURCES), user(Role.AUTHORITY)))
+                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Again."), user(Role.AUTHORITY)))
                 .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> reportService.vote(project.reportId(), user(Role.CITIZEN), true))
                 .isInstanceOf(IllegalStateException.class)
@@ -174,7 +168,7 @@ class CleanupLoopTests {
     private ProjectResponse approve(User reporter) {
         PollutionReport report = escalatedReport(reporter);
         ReportResponse decided = reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved.", RESOURCES), user(Role.AUTHORITY));
+                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved."), user(Role.AUTHORITY));
         return projects.view(decided.projectId(), reporter);
     }
 

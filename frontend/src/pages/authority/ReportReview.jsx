@@ -8,7 +8,6 @@ import ReportStatusBadge from '../../components/ReportStatusBadge.jsx';
 import CommunityVerificationCard from '../../components/CommunityVerificationCard.jsx';
 import ReviewStatusCard from '../../components/ReviewStatusCard.jsx';
 import InfoRequestsPanel from '../../components/InfoRequestsPanel.jsx';
-import ResourceFields, { buildResources, resourcePlanFrom } from '../../components/ResourceFields.jsx';
 import UserLink from '../../components/UserLink.jsx';
 import { Async } from '../../components/AsyncState.jsx';
 import { api } from '../../api/index.js';
@@ -30,7 +29,6 @@ export default function ReportReview() {
   const tab = searchParams.get('tab') === 'info' ? 'info' : 'review';
   const showTab = (next) => setSearchParams(next === 'info' ? { tab: 'info' } : {}, { replace: true });
   const [comment, setComment] = React.useState('');
-  const [plan, setPlan] = React.useState(() => resourcePlanFrom(null));
   const [rejectOpen, setRejectOpen] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [notice, setNotice] = React.useState(null);
@@ -65,17 +63,6 @@ export default function ReportReview() {
 
   const moderate = (decision, message) => run(() => api.reports.moderate(id, decision, comment.trim() || null), message);
   const decide = (decision, message) => run(() => api.reports.authorityDecision(id, decision, comment.trim()), message);
-
-  /** Approving commits the resources, so they travel with the decision. */
-  function approveAsOfficer(message) {
-    const { payload, error: invalid } = buildResources(plan);
-    if (invalid) {
-      setNotice(null);
-      setError(invalid);
-      return;
-    }
-    run(() => api.reports.authorityDecision(id, 'APPROVED', comment.trim(), payload), message);
-  }
 
   return (
     <Async state={state}>
@@ -183,15 +170,6 @@ export default function ReportReview() {
                       : 'Approving sends the report to the government officer for a decision.'}
                   </p>
                 </div>
-                {canDecide ? (
-                  <>
-                    <Alert tone="warning" title="Set the resources this cleanup needs">
-                      A project cannot be approved without them. The owner and everyone who joins work
-                      from what you set here, and you can revise it later from the project.
-                    </Alert>
-                    <ResourceFields plan={plan} onChange={setPlan} />
-                  </>
-                ) : null}
                 <Textarea
                   label="Official comment"
                   hint={canDecide
@@ -228,7 +206,7 @@ export default function ReportReview() {
                       <Button
                         iconLeft="shield-check"
                         disabled={busy || !hasComment}
-                        onClick={() => approveAsOfficer((updated) => `Approved. Project ${updated.projectReference} has been created with its resources, and ${updated.reporter?.fullName} is its project owner.`)}
+                        onClick={() => decide('APPROVED', (updated) => `Approved. Project ${updated.projectReference} has been created, with ${updated.reporter?.fullName} as its project owner. Assign its resources next.`)}
                       >
                         Approve and create project
                       </Button>

@@ -7,7 +7,7 @@ import { Async } from '../../components/AsyncState.jsx';
 const STAT_CARDS = [
   { key: 'reportedSites', label: 'Open reports', icon: 'map-pin' },
   { key: 'verifiedIncidents', label: 'Verified incidents', icon: 'badge-check' },
-  { key: 'escalatedReports', label: 'Escalated reports', icon: 'flag' },
+  { key: 'escalatedReports', label: 'With the government officer', icon: 'flag' },
   { key: 'activeProjects', label: 'Active projects', icon: 'waves-horizontal' },
   { key: 'completedProjects', label: 'Completed projects', icon: 'check-check' },
   { key: 'registeredVolunteers', label: 'Registered volunteers', icon: 'users' },
@@ -17,7 +17,7 @@ const STATUS_LABEL = {
   PENDING: 'Pending',
   VERIFYING: 'Verifying',
   VERIFIED: 'Verified',
-  ESCALATED: 'Escalated',
+  ESCALATED: 'With government officer',
   REJECTED: 'Rejected',
 };
 

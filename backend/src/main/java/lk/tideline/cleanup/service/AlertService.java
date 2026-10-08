@@ -1,6 +1,8 @@
 package lk.tideline.cleanup.service;
 
+import lk.tideline.cleanup.dto.AlertDtos.AlertReplyRequest;
 import lk.tideline.cleanup.dto.AlertDtos.AlertResponse;
+import lk.tideline.cleanup.model.AlertReply;
 import lk.tideline.cleanup.model.Alert;
 import lk.tideline.cleanup.model.AlertType;
 import lk.tideline.cleanup.model.CleanupProject;
@@ -20,10 +22,13 @@ public class AlertService {
 
     private final AlertRepository alertRepository;
     private final UserRepository userRepository;
+    private final ProjectService projects;
 
-    public AlertService(AlertRepository alertRepository, UserRepository userRepository) {
+    public AlertService(AlertRepository alertRepository, UserRepository userRepository,
+                        @org.springframework.context.annotation.Lazy ProjectService projects) {
         this.alertRepository = alertRepository;
         this.userRepository = userRepository;
+        this.projects = projects;
     }
 
     @Transactional(readOnly = true)
@@ -40,6 +45,29 @@ public class AlertService {
         if (!Objects.equals(alert.getRecipient().getId(), recipient.getId())) {
             throw new NotFoundException("Alert " + id + " was not found.");
         }
+        alert.setReadFlag(true);
+        return AlertResponse.from(alertRepository.save(alert));
+    }
+
+    /** Records how someone answered a call for help, and joins them to the cleanup if they said yes. */
+    @Transactional
+    public AlertResponse reply(Long id, AlertReplyRequest request, User recipient) {
+        Alert alert = alertRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Alert " + id + " was not found."));
+        if (!Objects.equals(alert.getRecipient().getId(), recipient.getId())) {
+            throw new NotFoundException("Alert " + id + " was not found.");
+        }
+        if (alert.getType() != AlertType.HELP_NEEDED || alert.getProjectId() == null) {
+            throw new IllegalStateException("That alert is not a call for help.");
+        }
+        if (alert.getReply() != null) {
+            throw new IllegalStateException("You have already answered this call for help.");
+        }
+
+        projects.respondToCall(alert.getProjectId(), recipient,
+                request.reply() == AlertReply.JOINED, request.equipment());
+
+        alert.setReply(request.reply());
         alert.setReadFlag(true);
         return AlertResponse.from(alertRepository.save(alert));
     }
@@ -106,6 +134,13 @@ public class AlertService {
     @Transactional
     public int notifyProjectNearby(CleanupProject project, double radiusKm, String title, String body,
                                    Set<Long> excludedUserIds) {
+        return notifyProjectNearby(project, radiusKm, AlertType.PROJECT_PLANNED, title, body, excludedUserIds);
+    }
+
+    /** Skips {@code excludedUserIds} — people already asked, and whoever is running the cleanup. */
+    @Transactional
+    public int notifyProjectNearby(CleanupProject project, double radiusKm, AlertType type, String title, String body,
+                                   Set<Long> excludedUserIds) {
         if (project.getLatitude() == null || project.getLongitude() == null) {
             return 0;
         }
@@ -114,7 +149,7 @@ public class AlertService {
             if (excludedUserIds.contains(user.getId())) {
                 continue;
             }
-            send(user, AlertType.PROJECT_PLANNED, title, body, null, project.getId(), radiusKm);
+            send(user, type, title, body, null, project.getId(), radiusKm);
             sent++;
         }
         return sent;

@@ -56,6 +56,12 @@ tideline:
   # New reports alert available users within this distance.
   alerts:
     initial-radius-km: 5
+    # Once a government officer sets what a cleanup needs, people within this far are asked to help.
+    recruitment-radius-km: 15
+    # Still short a week later, the call goes out this far — skipping everyone already asked.
+    widened-radius-km: 25
+    widen-after-days: 7
+    widen-scan-minutes: 15
   security:
     jwt-secret: ${TIDELINE_JWT_SECRET:dev-only-secret-change-me-in-production-0123456789abcdef}
     jwt-expiry-minutes: 720

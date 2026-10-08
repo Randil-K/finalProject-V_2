@@ -1,13 +1,16 @@
 package lk.tideline.cleanup.service;
 
 import lk.tideline.cleanup.config.TidelineProperties;
+import lk.tideline.cleanup.dto.ProjectDtos.EquipmentLine;
 import lk.tideline.cleanup.dto.ProjectDtos.ParticipantResponse;
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectResponse;
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectUpdateRequest;
 import lk.tideline.cleanup.dto.ProjectDtos.ResourcesRequest;
 import lk.tideline.cleanup.model.*;
+import lk.tideline.cleanup.repository.AlertRepository;
 import lk.tideline.cleanup.repository.CleanupProjectRepository;
 import lk.tideline.cleanup.repository.ProjectParticipantRepository;
+import lk.tideline.cleanup.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,15 +26,21 @@ public class ProjectService {
 
     private final CleanupProjectRepository projectRepository;
     private final ProjectParticipantRepository participantRepository;
+    private final AlertRepository alertRepository;
+    private final UserRepository userRepository;
     private final AlertService alertService;
     private final TidelineProperties properties;
 
     public ProjectService(CleanupProjectRepository projectRepository,
                           ProjectParticipantRepository participantRepository,
+                          AlertRepository alertRepository,
+                          UserRepository userRepository,
                           AlertService alertService,
                           TidelineProperties properties) {
         this.projectRepository = projectRepository;
         this.participantRepository = participantRepository;
+        this.alertRepository = alertRepository;
+        this.userRepository = userRepository;
         this.alertService = alertService;
         this.properties = properties;
     }
@@ -107,22 +116,148 @@ public class ProjectService {
                     "The government officer set out what " + project.getReference() + " needs: "
                             + describeResources(project) + ".",
                     null, project.getId(), null);
+            callForHelp(project);
         }
+        // A revision can bring the target down to what people have already pledged.
+        checkGathered(project);
         return toResponse(project, officer);
     }
 
     /**
-     * The officer's approval carries the resources, so a project is created ready to run. The owner
-     * hears about the project and what it needs in one alert, which the approval sends itself.
+     * Module 6 — asks everyone living within the first radius of the site to join. Widening the call
+     * later is {@link #widenCallForHelp}, which skips the people this round already reached.
+     */
+    private void callForHelp(CleanupProject project) {
+        double radius = properties.getAlerts().getRecruitmentRadiusKm();
+        project.setRecruitmentRadiusKm(radius);
+        alertService.notifyProjectNearby(project, radius, AlertType.HELP_NEEDED,
+                "Help needed at " + project.getLocationName(),
+                project.getTitle() + " needs " + describeResources(project)
+                        + ". Join if you can help, or ignore this if you cannot.",
+                Set.of(project.getOwner().getId()));
+    }
+
+    /**
+     * Widens a call that has waited long enough without filling. Everyone already asked is skipped,
+     * so nobody hears about the same cleanup twice.
      */
     @Transactional
-    public void assignAtApproval(CleanupProject project, ResourcesRequest request, User officer) {
-        apply(project, request, officer);
+    public int widenCallForHelp(Long projectId) {
+        CleanupProject project = get(projectId);
+        double radius = properties.getAlerts().getWidenedRadiusKm();
+        Set<Long> alreadyAsked = new java.util.HashSet<>();
+        alreadyAsked.add(project.getOwner().getId());
+        alertRepository.findByProjectIdAndType(project.getId(), AlertType.HELP_NEEDED)
+                .forEach(alert -> alreadyAsked.add(alert.getRecipient().getId()));
+
+        int sent = alertService.notifyProjectNearby(project, radius, AlertType.HELP_NEEDED,
+                "Still looking for help at " + project.getLocationName(),
+                project.getTitle() + " still needs " + describeShortfall(project)
+                        + ". Join if you can help, or ignore this if you cannot.",
+                alreadyAsked);
+
+        project.setRecruitmentRadiusKm(radius);
+        project.setRecruitmentWidenedAt(Instant.now());
+        projectRepository.save(project);
+        return sent;
+    }
+
+    /** Someone answers a call for help: they join the cleanup, or they let it pass. */
+    @Transactional
+    public ProjectResponse respondToCall(Long projectId, User user, boolean joining,
+                                         List<EquipmentLine> pledged) {
+        CleanupProject project = get(projectId);
+        if (!joining) {
+            return toResponse(project, user);
+        }
+
+        boolean alreadyIn = Objects.equals(project.getOwner().getId(), user.getId())
+                || participantRepository.findByProjectAndUser(project, user).isPresent();
+        if (!alreadyIn) {
+            join(projectId, user, null);
+            project = get(projectId);
+        }
+        pledgeEquipment(project, pledged);
+        checkGathered(project);
+        return toResponse(project, user);
+    }
+
+    /** Adds what someone promised to bring, never counting more than the cleanup asked for. */
+    private void pledgeEquipment(CleanupProject project, List<EquipmentLine> pledged) {
+        if (pledged == null || pledged.isEmpty()) {
+            return;
+        }
+        for (EquipmentLine line : pledged) {
+            if (line.quantity() <= 0) {
+                continue;
+            }
+            project.getEquipment().stream()
+                    .filter(item -> item.getName().equalsIgnoreCase(line.name().trim()))
+                    .findFirst()
+                    .ifPresent(item -> item.setSecuredQuantity(
+                            Math.min(item.getQuantity(), item.getSecuredQuantity() + line.quantity())));
+        }
+        projectRepository.save(project);
+    }
+
+    /** Tells the administrators and the owner the first time a cleanup has everything it needs. */
+    private void checkGathered(CleanupProject project) {
+        if (project.getResourcesGatheredAt() != null || !hasEverythingItNeeds(project)) {
+            return;
+        }
+        project.setResourcesGatheredAt(Instant.now());
+        projectRepository.save(project);
+
+        String body = project.getReference() + " has everyone and everything it asked for: "
+                + describeResources(project) + ". It is ready to run.";
+        alertService.send(project.getOwner(), AlertType.RESOURCES_GATHERED,
+                "Your cleanup has everything it needs", body, null, project.getId(), null);
+        for (User admin : userRepository.findByRole(Role.ADMIN)) {
+            alertService.send(admin, AlertType.RESOURCES_GATHERED,
+                    "Resources gathered for " + project.getReference(), body, null, project.getId(), null);
+        }
+    }
+
+    /** Enough people have joined and every piece of equipment has been promised. */
+    public boolean hasEverythingItNeeds(CleanupProject project) {
+        long volunteers = participantRepository.countByProjectAndParticipantRole(project, ParticipantRole.VOLUNTEER);
+        long divers = participantRepository.countByProjectAndParticipantRole(project, ParticipantRole.DIVER);
+        return volunteers >= orZero(project.getVolunteersNeeded())
+                && divers >= orZero(project.getDiversNeeded())
+                && project.getEquipment().stream().allMatch(EquipmentItem::isSecured);
+    }
+
+    /** "8 volunteers, 1 diver" — what is still missing, for the widened call. */
+    private String describeShortfall(CleanupProject project) {
+        long volunteers = orZero(project.getVolunteersNeeded())
+                - participantRepository.countByProjectAndParticipantRole(project, ParticipantRole.VOLUNTEER);
+        long divers = orZero(project.getDiversNeeded())
+                - participantRepository.countByProjectAndParticipantRole(project, ParticipantRole.DIVER);
+        List<String> parts = new java.util.ArrayList<>();
+        if (volunteers > 0) parts.add(volunteers + (volunteers == 1 ? " volunteer" : " volunteers"));
+        if (divers > 0) parts.add(divers + (divers == 1 ? " diver" : " divers"));
+        long equipment = project.getEquipment().stream().filter(item -> !item.isSecured()).count();
+        if (equipment > 0) parts.add(equipment + (equipment == 1 ? " type of equipment" : " types of equipment"));
+        return parts.isEmpty() ? describeResources(project) : String.join(", ", parts);
+    }
+
+    private static int securedSoFar(CleanupProject project, String name) {
+        return project.getEquipment().stream()
+                .filter(item -> item.getName().equalsIgnoreCase(name))
+                .mapToInt(EquipmentItem::getSecuredQuantity)
+                .findFirst()
+                .orElse(0);
+    }
+
+    private static int orZero(Integer value) {
+        return value == null ? 0 : value;
     }
 
     private void apply(CleanupProject project, ResourcesRequest request, User officer) {
+        // Revising the plan keeps what people have already promised to bring.
         List<EquipmentItem> equipment = request.equipment() == null ? List.of() : request.equipment().stream()
-                .map(line -> new EquipmentItem(line.name().trim(), line.quantity()))
+                .map(line -> new EquipmentItem(line.name().trim(), line.quantity(),
+                        Math.min(line.quantity(), securedSoFar(project, line.name().trim()))))
                 .toList();
         int volunteers = request.volunteersNeeded() == null ? 0 : request.volunteersNeeded();
         int divers = request.diversNeeded() == null ? 0 : request.diversNeeded();
@@ -209,11 +344,8 @@ public class ProjectService {
         participant.setUser(user);
         participant.setParticipantRole(resolved);
         participantRepository.saveAndFlush(participant);
-
-        if (project.getStatus() == ProjectStatus.PLANNED) {
-            project.setStatus(ProjectStatus.ACTIVE);
-            project.setStartedAt(Instant.now());
-        }
+        // The cleanup is under way once the owner records progress, not when the first person signs up.
+        checkGathered(project);
 
         return toResponse(project, user);
     }

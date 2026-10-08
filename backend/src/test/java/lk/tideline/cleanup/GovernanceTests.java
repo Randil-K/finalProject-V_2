@@ -3,8 +3,6 @@ package lk.tideline.cleanup;
 import lk.tideline.cleanup.dto.AuthDtos.AuthResponse;
 import lk.tideline.cleanup.dto.AuthDtos.LoginRequest;
 import lk.tideline.cleanup.dto.AuthDtos.RegisterRequest;
-import lk.tideline.cleanup.dto.ProjectDtos.EquipmentLine;
-import lk.tideline.cleanup.dto.ReportDtos.ApprovalResources;
 import lk.tideline.cleanup.dto.ReportDtos.AuthorityDecisionRequest;
 import lk.tideline.cleanup.dto.ReportDtos.ModerationRequest;
 import lk.tideline.cleanup.dto.ReportDtos.ReportResponse;
@@ -245,8 +243,7 @@ class GovernanceTests {
         assertThat(titlesFor(officer)).contains("Report escalated for your review");
 
         reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved with conditions.",
-                        new ApprovalResources(12, 2, List.of(new EquipmentLine("Lift bags", 4)))), officer);
+                new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved with conditions."), officer);
         assertThat(titlesFor(admin)).anyMatch(title -> title.startsWith("Government officer approved "));
     }
 
@@ -290,7 +287,7 @@ class GovernanceTests {
         PollutionReport report = report(reporter, ReportStatus.ESCALATED);
 
         ReportResponse response = reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.MORE_INFO_REQUESTED, "How deep is the sheen?", null), user(Role.AUTHORITY));
+                new AuthorityDecisionRequest(ReviewDecision.MORE_INFO_REQUESTED, "How deep is the sheen?"), user(Role.AUTHORITY));
 
         assertThat(response.status()).isEqualTo(ReportStatus.ESCALATED);
         assertThat(response.authorityDecision()).isEqualTo(ReviewDecision.MORE_INFO_REQUESTED);
@@ -303,7 +300,7 @@ class GovernanceTests {
         PollutionReport report = report(user(Role.CITIZEN), ReportStatus.ESCALATED);
 
         ReportResponse response = reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.REJECTED, "Outside coastal jurisdiction.", null), user(Role.AUTHORITY));
+                new AuthorityDecisionRequest(ReviewDecision.REJECTED, "Outside coastal jurisdiction."), user(Role.AUTHORITY));
 
         assertThat(response.status()).isEqualTo(ReportStatus.REJECTED);
         assertThat(response.projectId()).isNull();

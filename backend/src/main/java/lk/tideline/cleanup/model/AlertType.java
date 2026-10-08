@@ -16,5 +16,9 @@ public enum AlertType {
     INFO_REQUESTED,
     INFO_RESPONSE,
     RESOURCES_NEEDED,
-    RESOURCES_ASSIGNED
+    RESOURCES_ASSIGNED,
+    /** A call for help sent to people living near a cleanup that still needs hands. */
+    HELP_NEEDED,
+    /** Everything a cleanup needs has been pledged. */
+    RESOURCES_GATHERED
 }

@@ -2,11 +2,19 @@ import React from 'react';
 import { StatusBadge } from '../design-system';
 import { statusKey } from '../lib/format.js';
 
-// The design system's lifecycle has no "approved" state. A report the government officer approved has
-// become a project, so it is shown with the verified styling under that name.
+// The design system carries the SRS lifecycle words, which read oddly to the people using the app.
+// "Escalated" sounds like trouble when it only means the report has moved on to the government
+// officer; who verified it is spelled out in the Official review card. One the officer approved
+// has become a project.
+const RENAMED = {
+  APPROVED: { status: 'verified', label: 'Project' },
+  ESCALATED: { status: 'verified', label: 'With government officer' },
+};
+
 export default function ReportStatusBadge({ status, ...props }) {
-  if (status === 'APPROVED') {
-    return <StatusBadge status="verified" label="Project" {...props} />;
+  const renamed = RENAMED[status];
+  if (renamed) {
+    return <StatusBadge status={renamed.status} label={renamed.label} {...props} />;
   }
   return <StatusBadge status={statusKey(status)} {...props} />;
 }

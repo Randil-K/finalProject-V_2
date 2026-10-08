@@ -2,14 +2,16 @@ import React from 'react';
 import { Icon } from '../design-system';
 import { formatDate } from '../lib/format.js';
 
-/** Approved → Resources assigned → In progress → Completed. */
+/** Approved → Resources assigned → Resources gathered → In progress → Completed. */
 export function projectStages(project) {
   const resourcesDone = Boolean(project.resources?.finalized);
+  const gathered = Boolean(project.resourcesGatheredAt);
   const started = project.status === 'ACTIVE' || project.status === 'COMPLETED';
   const completed = project.status === 'COMPLETED';
   return [
     { key: 'approved', label: 'Approved', done: true, date: project.createdAt },
     { key: 'resources', label: 'Resources assigned', done: resourcesDone, date: project.resources?.finalizedAt },
+    { key: 'gathered', label: 'Resources gathered', done: gathered, date: project.resourcesGatheredAt },
     { key: 'progress', label: 'In progress', done: started, date: project.startedAt },
     { key: 'completed', label: 'Completed', done: completed, date: project.completedAt },
   ];

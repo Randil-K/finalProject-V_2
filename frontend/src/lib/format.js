@@ -40,6 +40,17 @@ export const ROLE_LABEL = {
 export const PROJECT_STATUS_LABEL = { PLANNED: 'Planned', ACTIVE: 'Active', COMPLETED: 'Completed' };
 export const PROJECT_STATUS_TONE = { PLANNED: 'neutral', ACTIVE: 'accent', COMPLETED: 'success' };
 
+/** Great-circle distance in kilometres, or null when either point is missing. */
+export function distanceKm(lat1, lon1, lat2, lon2) {
+  if ([lat1, lon1, lat2, lon2].some((value) => value == null)) return null;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 export function formatDate(iso, withYear = true) {

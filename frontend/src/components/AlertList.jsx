@@ -17,6 +17,8 @@ const KIND = {
   OPPORTUNITY: { icon: 'anchor', color: 'var(--buoy-600)' },
   ACCOUNT_REVIEW: { icon: 'user', color: 'var(--buoy-600)' },
   ACCOUNT_APPLICATION: { icon: 'badge-check', color: 'var(--buoy-600)' },
+  HELP_NEEDED: { icon: 'hand-heart', color: 'var(--tide-600)' },
+  RESOURCES_GATHERED: { icon: 'users', color: 'var(--status-verified)' },
   COMMENT_REPLY: { icon: 'message-square', color: 'var(--tide-600)' },
   INFO_REQUESTED: { icon: 'triangle-alert', color: 'var(--danger)' },
   INFO_RESPONSE: { icon: 'message-square', color: 'var(--sea-600)' },
@@ -108,6 +110,8 @@ export default function AlertList({ linkFor, empty }) {
                       <span style={{ font: 'var(--text-micro)', color: 'var(--text-muted)' }}>
                         {timeAgo(alert.createdAt)}
                         {alert.radiusKm ? ` · within ${alert.radiusKm} km` : ''}
+                        {alert.reply === 'JOINED' ? ' · you joined' : alert.reply === 'IGNORED' ? ' · you passed on this' : ''}
+                        {alert.type === 'HELP_NEEDED' && !alert.reply ? ' · open to join or ignore' : ''}
                       </span>
                     </div>
                   </div>

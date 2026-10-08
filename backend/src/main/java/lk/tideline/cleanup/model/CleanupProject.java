@@ -80,6 +80,15 @@ public class CleanupProject {
     @JoinColumn(name = "resources_finalized_by_id")
     private User resourcesFinalizedBy;
 
+    /** How far the call for help has reached, in kilometres; null until the resources are set. */
+    private Double recruitmentRadiusKm;
+
+    /** When the call for help was widened because too few people had joined. */
+    private Instant recruitmentWidenedAt;
+
+    /** When the last of the people and equipment the cleanup needs was pledged. */
+    private Instant resourcesGatheredAt;
+
     private Instant startedAt;
     private Instant completedAt;
 

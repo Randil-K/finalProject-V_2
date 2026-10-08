@@ -27,10 +27,20 @@ function Step({ title, badge, note, meta, children }) {
 }
 
 /**
- * The review path after community verification: administrator, then government officer. Approved
- * reports redirect to their project, so this card only ever shows reports still under review.
+ * The whole review path: the community first, then the administrator and the government officer.
+ * Approved reports redirect to their project, so this card only ever shows reports still under review.
  */
 export default function ReviewStatusCard({ report }) {
+  const confirmations = report.confirmVotes ?? 0;
+  const needed = report.minimumConfirmations ?? 0;
+  const trust = report.trustPercentage ?? 0;
+  const communityVerified = confirmations >= needed && trust >= (report.thresholdPercent ?? 0);
+  const communityBadge = communityVerified
+    ? <Badge tone="success" icon="badge-check">Verified</Badge>
+    : confirmations + (report.disputeVotes ?? 0) > 0
+      ? <Badge tone="warning" icon="users">Verifying</Badge>
+      : <Badge tone="neutral" icon="clock">No votes yet</Badge>;
+
   const authorityFallback = report.adminDecision === 'REJECTED' ? 'Not sent' : 'Waiting for administrator';
   const authorityMeta = report.decidedAt
     ? `Updated ${formatDate(report.decidedAt)}${report.authorityOfficer ? ` by ${report.authorityOfficer.fullName}` : ''}`
@@ -43,6 +53,12 @@ export default function ReviewStatusCard({ report }) {
       <div>
         <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Official review</span>
       </div>
+
+      <Step
+        title="Community"
+        badge={communityBadge}
+        meta={`${confirmations} of ${needed} confirmations · ${trust}% trust`}
+      />
 
       <Step
         title="Administrator"

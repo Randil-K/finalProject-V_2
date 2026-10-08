@@ -1,7 +1,6 @@
 package lk.tideline.cleanup.service;
 
 import lk.tideline.cleanup.config.TidelineProperties;
-import lk.tideline.cleanup.dto.ProjectDtos.ResourcesRequest;
 import lk.tideline.cleanup.dto.ReportDtos.*;
 import lk.tideline.cleanup.model.*;
 import lk.tideline.cleanup.repository.CleanupProjectRepository;
@@ -413,10 +412,6 @@ public class ReportService {
         if (decision == ReviewDecision.PENDING) {
             throw new IllegalArgumentException("Choose approve, reject, or request more information.");
         }
-        if (decision == ReviewDecision.APPROVED && (request.resources() == null || request.resources().isEmpty())) {
-            throw new IllegalArgumentException(
-                    "Set the volunteers, divers or equipment this cleanup needs before approving it.");
-        }
 
         String comment = request.comment().trim();
         Instant now = Instant.now();
@@ -433,25 +428,18 @@ public class ReportService {
             case APPROVED -> {
                 report.setStatus(ReportStatus.APPROVED);
                 CleanupProject project = projectService.createFromApprovedReport(report);
-                ApprovalResources resources = request.resources();
-                projectService.assignAtApproval(project,
-                        new ResourcesRequest(resources.volunteersNeeded(), resources.diversNeeded(),
-                                resources.equipment(), true),
-                        officer);
-                String needs = ProjectService.describeResources(project);
 
                 alertService.send(report.getReporter(), AlertType.PROJECT_PLANNED,
                         "Your report is now a project",
                         "The government officer approved " + reference + ". It is now project "
-                                + project.getReference() + " and you are its project owner, with "
-                                + needs + " assigned.",
+                                + project.getReference() + " and you are its project owner.",
                         report.getId(), project.getId(), null);
                 // The officer's note is for the administrators keeping an eye on the workflow, not for the owner.
                 for (User admin : userRepository.findByRole(Role.ADMIN)) {
                     alertService.send(admin, AlertType.AUTHORITY_DECISION,
                             "Government officer approved " + reference,
-                            officer.getFullName() + ": " + comment + " — " + project.getReference()
-                                    + " has " + needs + " assigned.",
+                            officer.getFullName() + ": " + comment
+                                    + " — " + project.getReference() + " is waiting for its resources.",
                             report.getId(), project.getId(), null);
                 }
                 adminTitle = null;

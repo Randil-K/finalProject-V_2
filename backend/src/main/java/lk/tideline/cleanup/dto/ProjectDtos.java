@@ -10,6 +10,7 @@ import lk.tideline.cleanup.model.CleanupProject;
 import lk.tideline.cleanup.model.ParticipantRole;
 import lk.tideline.cleanup.model.ProjectParticipant;
 import lk.tideline.cleanup.model.ProjectStatus;
+import lk.tideline.cleanup.model.Severity;
 import lk.tideline.cleanup.model.ProjectUpdate;
 import lk.tideline.cleanup.model.UpdateStage;
 
@@ -34,6 +35,10 @@ public final class ProjectDtos {
             Double longitude,
             Double debrisRemovedKg,
             Long reportId,
+            /** How bad the reported site was, carried over from the report. */
+            Severity severity,
+            /** Photos and video of the site, carried over from the report that started it. */
+            List<ReportDtos.EvidenceResponse> evidence,
             UserDtos.UserSummary owner,
             long volunteerCount,
             long diverCount,
@@ -48,7 +53,13 @@ public final class ProjectDtos {
             /** The assigned resources: everyone once finalized, administrators and officers while a draft. */
             ResourcesResponse resources,
             /** The government officer's approval note, for administrators and officers only. */
-            ApprovalNote approval
+            ApprovalNote approval,
+            /** How far the call for help has reached, in kilometres; null until the resources are set. */
+            Double recruitmentRadiusKm,
+            /** When the call was widened because too few people had joined. */
+            Instant recruitmentWidenedAt,
+            /** When the last of the people and equipment was pledged; null while anything is missing. */
+            Instant resourcesGatheredAt
     ) {
         public static ProjectResponse from(CleanupProject project, long volunteers, long divers, Boolean joined,
                                            List<ParticipantResponse> participants, boolean official) {
@@ -66,7 +77,12 @@ public final class ProjectDtos {
                     project.getLatitude(),
                     project.getLongitude(),
                     project.getDebrisRemovedKg(),
-                    project.getReport() == null ? null : project.getReport().getId(),
+                    report == null ? null : report.getId(),
+                    report == null ? null : report.getSeverity(),
+                    report == null ? List.<ReportDtos.EvidenceResponse>of()
+                            : report.getPhotos().stream()
+                                    .map(photo -> new ReportDtos.EvidenceResponse(photo.getUrl(), photo.getContentType()))
+                                    .toList(),
                     UserDtos.UserSummary.from(project.getOwner()),
                     volunteers,
                     divers,
@@ -83,7 +99,10 @@ public final class ProjectDtos {
                     official && report != null && report.getAuthorityComment() != null
                             ? new ApprovalNote(UserDtos.UserSummary.from(report.getAuthorityOfficer()),
                                     report.getAuthorityComment(), report.getDecidedAt())
-                            : null);
+                            : null,
+                    project.getRecruitmentRadiusKm(),
+                    project.getRecruitmentWidenedAt(),
+                    project.getResourcesGatheredAt());
         }
     }
 
@@ -93,10 +112,17 @@ public final class ProjectDtos {
     public record EquipmentLine(@NotBlank @Size(max = 100) String name, @Min(1) @Max(1000) int quantity) {
     }
 
+    /** One line of equipment a cleanup needs, and how much of it people have promised to bring. */
+    public record EquipmentNeed(String name, int quantity, int securedQuantity) {
+        public boolean secured() {
+            return securedQuantity >= quantity;
+        }
+    }
+
     public record ResourcesResponse(
             Integer volunteersNeeded,
             Integer diversNeeded,
-            List<EquipmentLine> equipment,
+            List<EquipmentNeed> equipment,
             boolean finalized,
             Instant finalizedAt,
             UserDtos.UserSummary finalizedBy
@@ -105,7 +131,9 @@ public final class ProjectDtos {
             return new ResourcesResponse(
                     project.getVolunteersNeeded(),
                     project.getDiversNeeded(),
-                    project.getEquipment().stream().map(item -> new EquipmentLine(item.getName(), item.getQuantity())).toList(),
+                    project.getEquipment().stream()
+                            .map(item -> new EquipmentNeed(item.getName(), item.getQuantity(), item.getSecuredQuantity()))
+                            .toList(),
                     project.getResourcesFinalizedAt() != null,
                     project.getResourcesFinalizedAt(),
                     UserDtos.UserSummary.from(project.getResourcesFinalizedBy()));

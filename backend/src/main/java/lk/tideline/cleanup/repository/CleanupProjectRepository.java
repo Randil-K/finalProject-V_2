@@ -22,4 +22,7 @@ public interface CleanupProjectRepository extends JpaRepository<CleanupProject, 
     boolean existsByReportId(Long reportId);
 
     List<CleanupProject> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
+
+    /** Projects whose call for help is open: resources set, nothing gathered yet, never widened. */
+    List<CleanupProject> findByResourcesFinalizedAtIsNotNullAndRecruitmentWidenedAtIsNullAndResourcesGatheredAtIsNull();
 }

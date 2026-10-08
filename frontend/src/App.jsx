@@ -20,6 +20,7 @@ import Opportunities from './pages/volunteer/Opportunities.jsx';
 import Profile from './pages/volunteer/Profile.jsx';
 import UserProfile from './pages/volunteer/UserProfile.jsx';
 import Cleanups from './pages/volunteer/Cleanups.jsx';
+import HelpCall from './pages/volunteer/HelpCall.jsx';
 import CleanupDetail from './pages/volunteer/CleanupDetail.jsx';
 
 import AuthorityShell from './layouts/AuthorityShell.jsx';
@@ -58,6 +59,14 @@ export default function App() {
             />
             <Route path="cleanups" element={<Cleanups />} />
             <Route path="cleanups/:id" element={<CleanupDetail />} />
+            <Route
+              path="help/:alertId"
+              element={
+                <RequireAuth>
+                  <HelpCall />
+                </RequireAuth>
+              }
+            />
             <Route
               path="submit"
               element={

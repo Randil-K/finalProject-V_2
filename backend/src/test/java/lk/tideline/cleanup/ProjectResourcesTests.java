@@ -1,9 +1,9 @@
 package lk.tideline.cleanup;
 
 import lk.tideline.cleanup.dto.ProjectDtos.EquipmentLine;
+import lk.tideline.cleanup.dto.ProjectDtos.EquipmentNeed;
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectResponse;
 import lk.tideline.cleanup.dto.ProjectDtos.ResourcesRequest;
-import lk.tideline.cleanup.dto.ReportDtos.ApprovalResources;
 import lk.tideline.cleanup.dto.ReportDtos.AuthorityDecisionRequest;
 import lk.tideline.cleanup.dto.ReportDtos.ReportResponse;
 import lk.tideline.cleanup.model.*;
@@ -31,7 +31,7 @@ class ProjectResourcesTests {
 
     private static final String NOTE = "Needs 20 volunteers, 3 divers for the reef edge, and a boat.";
     private static final List<EquipmentLine> KIT = List.of(new EquipmentLine("Gloves", 40), new EquipmentLine("Boat", 1));
-    private static final ApprovalResources RESOURCES = new ApprovalResources(20, 3, KIT);
+    private static final ResourcesRequest PLAN = new ResourcesRequest(20, 3, KIT, true);
 
     @Autowired
     private ReportService reportService;
@@ -78,53 +78,40 @@ class ProjectResourcesTests {
     }
 
     @Test
-    void approvingAssignsTheResourcesAndTellsTheOwnerWhatTheProjectHas() {
+    void aNewProjectHasNoResourcesUntilTheOfficerAssignsThem() {
         User owner = user(Role.CITIZEN);
         ReportResponse decided = approve(owner);
+
+        assertThat(projects.view(decided.projectId(), owner).resources())
+                .as("nothing to show the owner yet")
+                .isNull();
+        assertThat(alerts.findByRecipientOrderByCreatedAtDesc(owner))
+                .singleElement()
+                .satisfies(alert -> assertThat(alert.getTitle()).isEqualTo("Your report is now a project"));
+
+        projects.updateResources(decided.projectId(), PLAN, user(Role.AUTHORITY));
 
         ProjectResponse seenByOwner = projects.view(decided.projectId(), owner);
         assertThat(seenByOwner.resources().finalized()).isTrue();
         assertThat(seenByOwner.resources().volunteersNeeded()).isEqualTo(20);
         assertThat(seenByOwner.resources().diversNeeded()).isEqualTo(3);
-        assertThat(seenByOwner.resources().equipment()).extracting(EquipmentLine::name).containsExactly("Gloves", "Boat");
-
-        // One alert, not a project alert followed by a separate resources alert.
+        assertThat(seenByOwner.resources().equipment()).extracting(EquipmentNeed::name).containsExactly("Gloves", "Boat");
         assertThat(alerts.findByRecipientOrderByCreatedAtDesc(owner))
-                .singleElement()
-                .satisfies(alert -> {
-                    assertThat(alert.getTitle()).isEqualTo("Your report is now a project");
-                    assertThat(alert.getBody()).contains("20 volunteers, 3 divers, 2 types of equipment");
-                });
+                .extracting(Alert::getTitle)
+                .contains("Resources assigned to " + seenByOwner.reference());
     }
 
     @Test
-    void aReportCannotBeApprovedWithoutCommittingResources() {
-        User owner = user(Role.CITIZEN);
-        PollutionReport report = escalated(owner);
-
-        assertThatThrownBy(() -> reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, NOTE, null), user(Role.AUTHORITY)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("volunteers, divers or equipment");
-
-        assertThatThrownBy(() -> reportService.decideAsAuthority(report.getId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, NOTE,
-                        new ApprovalResources(0, 0, List.of())), user(Role.AUTHORITY)))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void theOfficerCanReviseResourcesLaterButAnAdministratorCannot() {
+    void onlyTheOfficerAssignsResourcesAndAnEmptyPlanIsRefused() {
         User admin = user(Role.ADMIN);
         Long projectId = approve(user(Role.CITIZEN)).projectId();
-        ResourcesRequest revision = new ResourcesRequest(25, 4, KIT, true);
 
-        assertThatThrownBy(() -> projects.updateResources(projectId, revision, admin))
+        assertThatThrownBy(() -> projects.updateResources(projectId, PLAN, admin))
                 .isInstanceOf(AccessDeniedException.class);
 
-        ProjectResponse revised = projects.updateResources(projectId, revision, user(Role.AUTHORITY));
-        assertThat(revised.resources().volunteersNeeded()).isEqualTo(25);
-        assertThat(revised.resources().finalized()).isTrue();
+        ProjectResponse assigned = projects.updateResources(projectId, PLAN, user(Role.AUTHORITY));
+        assertThat(assigned.resources().volunteersNeeded()).isEqualTo(20);
+        assertThat(assigned.resources().finalized()).isTrue();
 
         assertThatThrownBy(() -> projects.updateResources(projectId,
                 new ResourcesRequest(0, 0, List.of(), true), user(Role.AUTHORITY)))
@@ -133,7 +120,7 @@ class ProjectResourcesTests {
 
     private ReportResponse approve(User reporter) {
         return reportService.decideAsAuthority(escalated(reporter).getId(),
-                new AuthorityDecisionRequest(ReviewDecision.APPROVED, NOTE, RESOURCES), user(Role.AUTHORITY));
+                new AuthorityDecisionRequest(ReviewDecision.APPROVED, NOTE), user(Role.AUTHORITY));
     }
 
     private PollutionReport escalated(User reporter) {

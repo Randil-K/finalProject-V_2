@@ -173,22 +173,7 @@ public final class ReportDtos {
     /** Module 5 — approve (creates the project), reject, or ask for more information. A comment is required. */
     public record AuthorityDecisionRequest(
             @NotNull ReviewDecision decision,
-            @NotBlank @Size(max = 1000) String comment,
-            /** What the cleanup needs. Required when approving, ignored otherwise. */
-            @Valid ApprovalResources resources
+            @NotBlank @Size(max = 1000) String comment
     ) {
-    }
-
-    /** The volunteers, divers and equipment a government officer commits to an approved project. */
-    public record ApprovalResources(
-            @Min(0) @Max(1000) Integer volunteersNeeded,
-            @Min(0) @Max(1000) Integer diversNeeded,
-            @Size(max = 30) List<@Valid EquipmentLine> equipment
-    ) {
-        public boolean isEmpty() {
-            return (volunteersNeeded == null || volunteersNeeded == 0)
-                    && (diversNeeded == null || diversNeeded == 0)
-                    && (equipment == null || equipment.isEmpty());
-        }
     }
 }
