@@ -41,6 +41,12 @@ export default function ReviewStatusCard({ report }) {
       ? <Badge tone="warning" icon="users">Verifying</Badge>
       : <Badge tone="neutral" icon="clock">No votes yet</Badge>;
 
+  // An administrator only looks once the community has vouched for the report.
+  const adminUndecided = !report.adminDecision || report.adminDecision === 'PENDING';
+  const adminBadge = adminUndecided && !communityVerified
+    ? <Badge tone="neutral">Waiting for community verification</Badge>
+    : <DecisionBadge decision={report.adminDecision} fallback="Pending" />;
+
   const authorityFallback = report.adminDecision === 'REJECTED' ? 'Not sent' : 'Waiting for administrator';
   const authorityMeta = report.decidedAt
     ? `Updated ${formatDate(report.decidedAt)}${report.authorityOfficer ? ` by ${report.authorityOfficer.fullName}` : ''}`
@@ -62,7 +68,7 @@ export default function ReviewStatusCard({ report }) {
 
       <Step
         title="Administrator"
-        badge={<DecisionBadge decision={report.adminDecision} fallback="Pending" />}
+        badge={adminBadge}
         note={report.moderationComment}
         meta={report.adminReviewedAt ? `Updated ${formatDate(report.adminReviewedAt)}` : null}
       />

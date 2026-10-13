@@ -38,7 +38,7 @@ public class OpportunityService {
 
     @Transactional(readOnly = true)
     public List<OpportunityResponse> listOpen() {
-        return opportunityRepository.findByOpenTrueOrderByCreatedAtDesc().stream()
+        return opportunityRepository.findByOpenTrueOrderByCreatedAtDescIdDesc().stream()
                 .map(OpportunityResponse::from)
                 .toList();
     }
@@ -130,7 +130,7 @@ public class OpportunityService {
 
     @Transactional(readOnly = true)
     public List<ApplicationResponse> myApplications(User diver) {
-        return applicationRepository.findByDiverOrderByCreatedAtDesc(diver).stream()
+        return applicationRepository.findByDiverOrderByCreatedAtDescIdDesc(diver).stream()
                 .map(ApplicationResponse::from)
                 .toList();
     }

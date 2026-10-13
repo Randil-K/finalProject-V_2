@@ -1,6 +1,7 @@
 package lk.tideline.cleanup.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lk.tideline.cleanup.model.AccountDocument;
 import lk.tideline.cleanup.model.AccountStatus;
@@ -28,6 +29,8 @@ public final class UserDtos {
 
     public record UserResponse(
             Long id,
+            String firstName,
+            String lastName,
             String fullName,
             String avatarUrl,
             String email,
@@ -52,6 +55,8 @@ public final class UserDtos {
         public static UserResponse from(User user, Double averageMark, Integer markedCleanups, List<OwnedProject> ownedProjects) {
             return new UserResponse(
                     user.getId(),
+                    user.getFirstName(),
+                    user.getLastName(),
                     user.getFullName(),
                     avatarUrlOf(user),
                     user.getEmail(),
@@ -160,10 +165,18 @@ public final class UserDtos {
     }
 
     public record UpdateProfileRequest(
-            String fullName,
+            @Size(min = 2, max = 50, message = "must be between 2 and 50 characters")
+            @Pattern(regexp = "^[\\p{L}][\\p{L} .'-]*$",
+                    message = "can only contain letters, spaces, apostrophes, hyphens and full stops")
+            String firstName,
+
+            @Size(min = 2, max = 50, message = "must be between 2 and 50 characters")
+            @Pattern(regexp = "^[\\p{L}][\\p{L} .'-]*$",
+                    message = "can only contain letters, spaces, apostrophes, hyphens and full stops")
+            String lastName,
             String phone,
             String province,
-            String city,
+            @Size(max = 100) String city,
             Double latitude,
             Double longitude,
             Boolean availableForAlerts,

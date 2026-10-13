@@ -33,7 +33,7 @@ public class AlertService {
 
     @Transactional(readOnly = true)
     public List<AlertResponse> inbox(User recipient) {
-        return alertRepository.findByRecipientOrderByCreatedAtDesc(recipient).stream()
+        return alertRepository.findByRecipientOrderByCreatedAtDescIdDesc(recipient).stream()
                 .map(AlertResponse::from)
                 .toList();
     }
@@ -79,7 +79,7 @@ public class AlertService {
 
     @Transactional
     public int markAllRead(User recipient) {
-        List<Alert> unread = alertRepository.findByRecipientOrderByCreatedAtDesc(recipient).stream()
+        List<Alert> unread = alertRepository.findByRecipientOrderByCreatedAtDescIdDesc(recipient).stream()
                 .filter(alert -> !alert.isReadFlag())
                 .toList();
         unread.forEach(alert -> alert.setReadFlag(true));

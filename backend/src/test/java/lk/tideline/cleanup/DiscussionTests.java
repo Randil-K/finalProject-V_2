@@ -5,6 +5,7 @@ import lk.tideline.cleanup.dto.ReportDtos.CommentResponse;
 import lk.tideline.cleanup.dto.ReportDtos.CreateReportRequest;
 import lk.tideline.cleanup.model.*;
 import lk.tideline.cleanup.repository.AlertRepository;
+import lk.tideline.cleanup.repository.PollutionReportRepository;
 import lk.tideline.cleanup.repository.UserRepository;
 import lk.tideline.cleanup.service.NotFoundException;
 import lk.tideline.cleanup.service.ReportService;
@@ -33,6 +34,9 @@ class DiscussionTests {
     @Autowired
     private AlertRepository alerts;
 
+    @Autowired
+    private PollutionReportRepository reports;
+
     @Test
     void repliesStayOneLevelDeepAndAlertTheCommentAuthor() {
         User reporter = user();
@@ -46,10 +50,10 @@ class DiscussionTests {
 
         assertThat(reply.parentId()).isEqualTo(question.id());
         assertThat(replyToReply.parentId()).isEqualTo(question.id());
-        assertThat(alerts.findByRecipientOrderByCreatedAtDesc(neighbour))
+        assertThat(alerts.findByRecipientOrderByCreatedAtDescIdDesc(neighbour))
                 .extracting(Alert::getTitle)
                 .contains(reporter.getFullName() + " replied to your comment");
-        assertThat(alerts.findByRecipientOrderByCreatedAtDesc(reporter))
+        assertThat(alerts.findByRecipientOrderByCreatedAtDescIdDesc(reporter))
                 .extracting(Alert::getType)
                 .contains(AlertType.COMMENT_REPLY);
     }
@@ -94,9 +98,47 @@ class DiscussionTests {
                 .isInstanceOf(NotFoundException.class);
     }
 
+    @Test
+    void theCommunityStopsVotingAndCommentingOnceTheAdministratorHasDecided() {
+        User reporter = user();
+        User member = user();
+        Long reportId = report(reporter);
+
+        reportService.vote(reportId, member, true);
+        reportService.comment(reportId, member, new CommentRequest("I walked past it this morning.", null));
+
+        reports.findById(reportId).ifPresent(saved -> {
+            saved.setAdminDecision(ReviewDecision.APPROVED);
+            saved.setStatus(ReportStatus.ESCALATED);
+            reports.save(saved);
+        });
+
+        assertThatThrownBy(() -> reportService.vote(reportId, user(), true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Voting is closed");
+        assertThatThrownBy(() -> reportService.comment(reportId, member,
+                new CommentRequest("One more thing.", null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("discussion is closed");
+
+        assertThat(reportService.comment(reportId, admin(),
+                new CommentRequest("Sent to the government officer.", null)).official())
+                .as("reviewers can still record a note")
+                .isTrue();
+    }
+
+    private User admin() {
+        User user = new User();
+        user.setFullName("Admin tester");
+        user.setEmail(UUID.randomUUID() + "@test.lk");
+        user.setPasswordHash("x");
+        user.setRole(Role.ADMIN);
+        return users.save(user);
+    }
+
     private Long report(User reporter) {
         return reportService.create(new CreateReportRequest("Plastic on the shore", "Bottles.", Severity.LOW,
-                "Galle", "Southern Province", 6.03, 80.21, null), reporter).id();
+                "Galle", "Southern Province", "Galle", 6.03, 80.21, null, true), reporter).id();
     }
 
     private User user() {

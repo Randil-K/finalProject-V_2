@@ -3,6 +3,7 @@ package lk.tideline.cleanup.controller;
 import lk.tideline.cleanup.dto.AnalyticsDtos.SummaryResponse;
 import lk.tideline.cleanup.service.AnalyticsService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -17,7 +18,7 @@ public class AnalyticsController {
     }
 
     @GetMapping("/summary")
-    public SummaryResponse summary() {
-        return analyticsService.summary();
+    public SummaryResponse summary(@RequestParam(required = false) String district) {
+        return analyticsService.summary(district);
     }
 }

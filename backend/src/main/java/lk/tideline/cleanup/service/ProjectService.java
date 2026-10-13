@@ -5,18 +5,26 @@ import lk.tideline.cleanup.dto.ProjectDtos.EquipmentLine;
 import lk.tideline.cleanup.dto.ProjectDtos.ParticipantResponse;
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectResponse;
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectUpdateRequest;
+import lk.tideline.cleanup.dto.ProjectDtos.ProjectUpdateResponse;
 import lk.tideline.cleanup.dto.ProjectDtos.ResourcesRequest;
+import lk.tideline.cleanup.dto.ProjectDtos.UpdateCommentResponse;
 import lk.tideline.cleanup.model.*;
 import lk.tideline.cleanup.repository.AlertRepository;
 import lk.tideline.cleanup.repository.CleanupProjectRepository;
 import lk.tideline.cleanup.repository.ProjectParticipantRepository;
+import lk.tideline.cleanup.repository.ProjectUpdateCommentRepository;
+import lk.tideline.cleanup.repository.ProjectUpdateLikeRepository;
+import lk.tideline.cleanup.repository.ProjectUpdateRepository;
 import lk.tideline.cleanup.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import lk.tideline.cleanup.service.DocumentStorageService.CheckedFile;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -26,21 +34,33 @@ public class ProjectService {
 
     private final CleanupProjectRepository projectRepository;
     private final ProjectParticipantRepository participantRepository;
+    private final ProjectUpdateRepository updateRepository;
+    private final ProjectUpdateLikeRepository likeRepository;
+    private final ProjectUpdateCommentRepository commentRepository;
     private final AlertRepository alertRepository;
     private final UserRepository userRepository;
+    private final DocumentStorageService storage;
     private final AlertService alertService;
     private final TidelineProperties properties;
 
     public ProjectService(CleanupProjectRepository projectRepository,
                           ProjectParticipantRepository participantRepository,
+                          ProjectUpdateRepository updateRepository,
+                          ProjectUpdateLikeRepository likeRepository,
+                          ProjectUpdateCommentRepository commentRepository,
                           AlertRepository alertRepository,
                           UserRepository userRepository,
+                          DocumentStorageService storage,
                           AlertService alertService,
                           TidelineProperties properties) {
         this.projectRepository = projectRepository;
         this.participantRepository = participantRepository;
+        this.updateRepository = updateRepository;
+        this.likeRepository = likeRepository;
+        this.commentRepository = commentRepository;
         this.alertRepository = alertRepository;
         this.userRepository = userRepository;
+        this.storage = storage;
         this.alertService = alertService;
         this.properties = properties;
     }
@@ -48,10 +68,10 @@ public class ProjectService {
     @Transactional(readOnly = true)
     public List<ProjectResponse> list(ProjectStatus status, Long reportId, User viewer) {
         List<CleanupProject> projects = reportId != null
-                ? projectRepository.findByReportIdOrderByCreatedAtDesc(reportId)
+                ? projectRepository.findByReportIdOrderByCreatedAtDescIdDesc(reportId)
                 : status != null
-                    ? projectRepository.findByStatusOrderByCreatedAtDesc(status)
-                    : projectRepository.findAllByOrderByCreatedAtDesc();
+                    ? projectRepository.findByStatusOrderByCreatedAtDescIdDesc(status)
+                    : projectRepository.findAllByOrderByCreatedAtDescIdDesc();
         return projects.stream()
                 .filter(project -> status == null || project.getStatus() == status)
                 .map(project -> toResponse(project, viewer))
@@ -79,18 +99,20 @@ public class ProjectService {
                     || viewer.getRole() == Role.ADMIN
                     || viewer.getRole() == Role.AUTHORITY);
         List<ParticipantResponse> participants = manages
-                ? participantRepository.findByProjectOrderByJoinedAtAsc(project).stream()
+                ? participantRepository.findByProjectOrderByJoinedAtAscIdAsc(project).stream()
                         .map(ParticipantResponse::from)
                         .toList()
                 : null;
 
         boolean official = viewer != null && (viewer.getRole() == Role.ADMIN || viewer.getRole() == Role.AUTHORITY);
         return ProjectResponse.from(project,
+                viewer != null && project.getStatus() != ProjectStatus.COMPLETED && canPostProgress(project, viewer),
                 participantRepository.countByProjectAndParticipantRole(project, ParticipantRole.VOLUNTEER),
                 participantRepository.countByProjectAndParticipantRole(project, ParticipantRole.DIVER),
                 joined,
                 participants,
-                official);
+                official,
+                story(project, viewer));
     }
 
     /**
@@ -208,23 +230,138 @@ public class ProjectService {
         project.setResourcesGatheredAt(Instant.now());
         projectRepository.save(project);
 
-        String body = project.getReference() + " has everyone and everything it asked for: "
-                + describeResources(project) + ". It is ready to run.";
+        String body = project.getReference() + " has the people it asked for: "
+                + describePeople(project) + ". It is ready to run.";
         alertService.send(project.getOwner(), AlertType.RESOURCES_GATHERED,
-                "Your cleanup has everything it needs", body, null, project.getId(), null);
+                "Your cleanup has everyone it needs", body, null, project.getId(), null);
         for (User admin : userRepository.findByRole(Role.ADMIN)) {
             alertService.send(admin, AlertType.RESOURCES_GATHERED,
                     "Resources gathered for " + project.getReference(), body, null, project.getId(), null);
         }
     }
 
-    /** Enough people have joined and every piece of equipment has been promised. */
+    /**
+     * The owner always may. When the owner declined the responsibility at reporting time, so may
+     * anyone who has joined the cleanup — otherwise nobody would be keeping its story.
+     */
+    private boolean canPostProgress(CleanupProject project, User user) {
+        if (Objects.equals(project.getOwner().getId(), user.getId())) {
+            return true;
+        }
+        return project.isProgressOpenToParticipants()
+                && participantRepository.findByProjectAndUser(project, user).isPresent();
+    }
+
+    /** Every progress update in order, each with its likes and comments. */
+    private List<ProjectUpdateResponse> story(CleanupProject project, User viewer) {
+        // Posted-at, then id: MariaDB keeps these timestamps to the second, so two updates posted
+        // in the same second would otherwise swap places between page loads.
+        List<ProjectUpdate> updates = project.getUpdates().stream()
+                .sorted(java.util.Comparator.comparing(ProjectUpdate::getCreatedAt)
+                        .thenComparing(ProjectUpdate::getId))
+                .toList();
+        if (updates.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> ids = updates.stream().map(ProjectUpdate::getId).toList();
+        Map<Long, Long> likeCounts = new java.util.HashMap<>();
+        Set<Long> likedByViewer = new java.util.HashSet<>();
+        for (ProjectUpdateLike like : likeRepository.findByUpdateIdIn(ids)) {
+            likeCounts.merge(like.getUpdate().getId(), 1L, Long::sum);
+            if (viewer != null && Objects.equals(like.getUser().getId(), viewer.getId())) {
+                likedByViewer.add(like.getUpdate().getId());
+            }
+        }
+
+        Map<Long, List<UpdateCommentResponse>> comments = new java.util.HashMap<>();
+        for (ProjectUpdateComment comment : commentRepository.findByUpdateIdInOrderByCreatedAtAscIdAsc(ids)) {
+            comments.computeIfAbsent(comment.getUpdate().getId(), key -> new java.util.ArrayList<>())
+                    .add(UpdateCommentResponse.from(comment));
+        }
+
+        return updates.stream()
+                .map(update -> ProjectUpdateResponse.from(
+                        update,
+                        likeCounts.getOrDefault(update.getId(), 0L),
+                        viewer == null ? null : likedByViewer.contains(update.getId()),
+                        comments.getOrDefault(update.getId(), List.of())))
+                .toList();
+    }
+
+    /** A viewer likes a progress update, or takes the like back. */
+    @Transactional
+    public ProjectResponse likeUpdate(Long projectId, Long updateId, User viewer) {
+        ProjectUpdate update = updateOf(projectId, updateId);
+        likeRepository.findByUpdateAndUser(update, viewer).ifPresentOrElse(
+                likeRepository::delete,
+                () -> {
+                    ProjectUpdateLike like = new ProjectUpdateLike();
+                    like.setUpdate(update);
+                    like.setUser(viewer);
+                    likeRepository.saveAndFlush(like);
+                });
+        return toResponse(get(projectId), viewer);
+    }
+
+    /** A viewer says something about a progress update. */
+    @Transactional
+    public ProjectResponse commentOnUpdate(Long projectId, Long updateId, String body, User author) {
+        ProjectUpdate update = updateOf(projectId, updateId);
+        ProjectUpdateComment comment = new ProjectUpdateComment();
+        comment.setUpdate(update);
+        comment.setAuthor(author);
+        comment.setBody(body.trim());
+        commentRepository.saveAndFlush(comment);
+        return toResponse(get(projectId), author);
+    }
+
+    private ProjectUpdate updateOf(Long projectId, Long updateId) {
+        ProjectUpdate update = updateRepository.findById(updateId)
+                .orElseThrow(() -> new NotFoundException("Update " + updateId + " was not found."));
+        if (!Objects.equals(update.getProject().getId(), projectId)) {
+            throw new NotFoundException("Update " + updateId + " was not found.");
+        }
+        return update;
+    }
+
+    /** Re-checks a project that nobody has joined lately, in case it already has the people it needs. */
+    @Transactional
+    public void catchUpGathered(Long projectId) {
+        checkGathered(get(projectId));
+    }
+
+    /**
+     * Enough volunteers and divers have joined. Equipment is listed on the project but does not hold
+     * this back: how people hand equipment over has not been settled yet.
+     */
     public boolean hasEverythingItNeeds(CleanupProject project) {
         long volunteers = participantRepository.countByProjectAndParticipantRole(project, ParticipantRole.VOLUNTEER);
         long divers = participantRepository.countByProjectAndParticipantRole(project, ParticipantRole.DIVER);
         return volunteers >= orZero(project.getVolunteersNeeded())
-                && divers >= orZero(project.getDiversNeeded())
-                && project.getEquipment().stream().allMatch(EquipmentItem::isSecured);
+                && divers >= orZero(project.getDiversNeeded());
+    }
+
+    /** How many more people of this kind the cleanup asked for and has not got. */
+    private long roomFor(CleanupProject project, ParticipantRole role) {
+        int needed = role == ParticipantRole.DIVER
+                ? orZero(project.getDiversNeeded()) : orZero(project.getVolunteersNeeded());
+        return needed - participantRepository.countByProjectAndParticipantRole(project, role);
+    }
+
+    private static String describeRole(ParticipantRole role, long count) {
+        String word = role == ParticipantRole.DIVER ? "diver" : "volunteer";
+        return count == 1 ? word : word + "s";
+    }
+
+    /** "4 volunteers, 1 diver" — the people a project asked for. */
+    private static String describePeople(CleanupProject project) {
+        int volunteers = orZero(project.getVolunteersNeeded());
+        int divers = orZero(project.getDiversNeeded());
+        List<String> parts = new java.util.ArrayList<>();
+        if (volunteers > 0) parts.add(volunteers + (volunteers == 1 ? " volunteer" : " volunteers"));
+        if (divers > 0) parts.add(divers + (divers == 1 ? " diver" : " divers"));
+        return parts.isEmpty() ? "everyone it asked for" : String.join(" and ", parts);
     }
 
     /** "8 volunteers, 1 diver" — what is still missing, for the widened call. */
@@ -261,8 +398,9 @@ public class ProjectService {
                 .toList();
         int volunteers = request.volunteersNeeded() == null ? 0 : request.volunteersNeeded();
         int divers = request.diversNeeded() == null ? 0 : request.diversNeeded();
-        if (request.publish() && volunteers == 0 && divers == 0 && equipment.isEmpty()) {
-            throw new IllegalArgumentException("Add the volunteers, divers or equipment this project needs before finalizing.");
+        // Equipment and divers are optional; people on the sand are not.
+        if (request.publish() && volunteers < 1) {
+            throw new IllegalArgumentException("Every cleanup needs at least one volunteer.");
         }
 
         project.setVolunteersNeeded(volunteers);
@@ -310,6 +448,7 @@ public class ProjectService {
         project.setLatitude(report.getLatitude());
         project.setLongitude(report.getLongitude());
         project.setStatus(ProjectStatus.PLANNED);
+        project.setProgressOpenToParticipants(!report.isReporterWillLead());
 
         CleanupProject saved = projectRepository.saveAndFlush(project);
         saved.setReference("CP-" + (100 + saved.getId()));
@@ -329,6 +468,11 @@ public class ProjectService {
         if (project.getStatus() == ProjectStatus.COMPLETED) {
             throw new IllegalStateException("This cleanup is already complete.");
         }
+        // Nobody signs up before the officer has said how many people and what equipment it needs.
+        if (project.getResourcesFinalizedAt() == null) {
+            throw new IllegalStateException(
+                    "This cleanup is not open yet — the government officer is still assigning its resources.");
+        }
         if (Objects.equals(project.getOwner().getId(), user.getId())) {
             throw new IllegalStateException("You are this project's owner, so you are already part of it.");
         }
@@ -338,6 +482,17 @@ public class ProjectService {
 
         ParticipantRole resolved = role != null ? role
                 : (user.getRole() == Role.DIVER ? ParticipantRole.DIVER : ParticipantRole.VOLUNTEER);
+        if (roomFor(project, resolved) < 1) {
+            ParticipantRole other = resolved == ParticipantRole.DIVER
+                    ? ParticipantRole.VOLUNTEER : ParticipantRole.DIVER;
+            // Somebody who did not ask for a particular role can still fill the place that is left.
+            if (role != null || roomFor(project, other) < 1) {
+                throw new IllegalStateException(hasEverythingItNeeds(project)
+                        ? "This cleanup already has everyone it needs."
+                        : "This cleanup has all the " + describeRole(resolved, 2) + " it needs.");
+            }
+            resolved = other;
+        }
 
         ProjectParticipant participant = new ProjectParticipant();
         participant.setProject(project);
@@ -383,35 +538,38 @@ public class ProjectService {
 
     /** Module 7 — progress evidence, completion percentage and recorded outcome. */
     @Transactional
-    public ProjectResponse addUpdate(Long projectId, ProjectUpdateRequest request, User author) {
+    public ProjectResponse addUpdate(Long projectId, ProjectUpdateRequest request, MultipartFile photo, User author) {
         CleanupProject project = get(projectId);
 
-        // Progress is the project owner's responsibility; administrators and officers only follow it.
-        if (!Objects.equals(project.getOwner().getId(), author.getId())) {
-            throw new AccessDeniedException("Only the project owner can post progress updates.");
+        if (!canPostProgress(project, author)) {
+            // Progress is the owner's responsibility unless they handed it to whoever turns up.
+            throw new AccessDeniedException(project.isProgressOpenToParticipants()
+                    ? "Join this cleanup to post its progress."
+                    : "Only the project owner can post progress updates.");
+        }
+
+        String note = request.note() == null || request.note().isBlank() ? null : request.note().trim();
+        List<CheckedFile> files = storage.checkEvidence(photo == null ? List.of() : List.of(photo));
+        if (note == null && files.isEmpty()) {
+            throw new IllegalArgumentException("Add a photo or a note so there is something to show.");
         }
 
         ProjectUpdate update = new ProjectUpdate();
         update.setProject(project);
         update.setAuthor(author);
         update.setStage(request.stage());
-        update.setNote(request.note());
-        update.setImageUrl(request.imageUrl());
-        update.setCompletionPercentage(request.completionPercentage());
+        update.setNote(note == null ? "" : note);
+        for (CheckedFile file : files) {
+            update.setImageUrl("/api/reports/evidence/" + storage.saveEvidence(file));
+        }
         project.getUpdates().add(update);
 
-        if (request.completionPercentage() != null) {
-            project.setCompletionPercentage(request.completionPercentage());
-        }
-        if (request.debrisRemovedKg() != null) {
-            project.setDebrisRemovedKg(request.debrisRemovedKg());
-        }
+        // The work is under way from the first update, and finished once the owner shows the after.
         if (project.getStatus() == ProjectStatus.PLANNED) {
             project.setStatus(ProjectStatus.ACTIVE);
             project.setStartedAt(Instant.now());
         }
-
-        if (project.getCompletionPercentage() >= 100) {
+        if (request.stage() == UpdateStage.AFTER && project.getStatus() != ProjectStatus.COMPLETED) {
             complete(project);
         }
 

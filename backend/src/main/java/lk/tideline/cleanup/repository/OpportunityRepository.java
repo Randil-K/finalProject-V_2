@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface OpportunityRepository extends JpaRepository<Opportunity, Long> {
 
-    List<Opportunity> findByOpenTrueOrderByCreatedAtDesc();
+    List<Opportunity> findByOpenTrueOrderByCreatedAtDescIdDesc();
 
-    List<Opportunity> findByOrganizationOrderByCreatedAtDesc(User organization);
+    List<Opportunity> findByOrganizationOrderByCreatedAtDescIdDesc(User organization);
 }

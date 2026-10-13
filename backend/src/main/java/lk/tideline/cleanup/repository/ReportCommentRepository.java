@@ -8,5 +8,5 @@ import java.util.List;
 
 public interface ReportCommentRepository extends JpaRepository<ReportComment, Long> {
 
-    List<ReportComment> findByReportOrderByCreatedAtAsc(PollutionReport report);
+    List<ReportComment> findByReportOrderByCreatedAtAscIdAsc(PollutionReport report);
 }

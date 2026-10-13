@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Badge, Button, Input, Select, Switch, Tag, Alert } from '../../design-system';
 import ProfileOverview, { DetailRow, DetailSection } from '../../components/ProfileOverview.jsx';
 import { Async } from '../../components/AsyncState.jsx';
@@ -8,10 +8,14 @@ import { useApi } from '../../hooks/useApi.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { ACCOUNT_STATUS, CERTIFICATION_OPTIONS, PROVINCES } from '../../lib/format.js';
 import AvatarEditor from '../../components/AvatarEditor.jsx';
+import { nameError, splitName } from '../../lib/validation.js';
+import { citiesIn, nearestPlace, provinceOf } from '../../lib/places.js';
 
 function formFrom(user) {
+  const { firstName, lastName } = splitName(user);
   return {
-    fullName: user?.fullName || '',
+    firstName,
+    lastName,
     phone: user?.phone || '',
     province: user?.province || '',
     city: user?.city || '',
@@ -33,7 +37,11 @@ export default function Profile() {
   const { user, setUser, logout } = useAuth();
   const profileState = useApi(() => (user ? api.users.profile(user.id) : Promise.resolve(null)), [user]);
 
-  const [editing, setEditing] = React.useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // "Add my location" on the feed sends people straight here, already editing.
+  const askedForLocation = searchParams.get('edit') === 'location';
+  const [editing, setEditing] = React.useState(askedForLocation);
+  const locationRef = React.useRef(null);
   const [form, setForm] = React.useState(() => formFrom(user));
   const [diver, setDiver] = React.useState(() => diverFrom(user));
   const [regions, setRegions] = React.useState(user?.diverProfile?.preferredRegions || []);
@@ -42,12 +50,24 @@ export default function Profile() {
   const [busy, setBusy] = React.useState(false);
   const [locating, setLocating] = React.useState(false);
 
+  React.useEffect(() => {
+    if (askedForLocation && locationRef.current) {
+      locationRef.current.scrollIntoView({ block: 'center' });
+    }
+  }, [askedForLocation]);
+
   const isDiver = user?.role === 'DIVER';
   const hasLocation = user?.latitude != null && user?.longitude != null;
   const remainingRegions = PROVINCES.filter((p) => !regions.includes(p));
 
   const set = (key) => (event) => setForm((f) => ({ ...f, [key]: event.target.value }));
   const setDiverField = (key) => (event) => setDiver((d) => ({ ...d, [key]: event.target.value }));
+
+  function stopEditing() {
+    setStatus(null);
+    setEditing(false);
+    if (askedForLocation) setSearchParams({}, { replace: true });
+  }
 
   function startEditing() {
     setForm(formFrom(user));
@@ -68,13 +88,28 @@ export default function Profile() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
+          const { latitude, longitude } = position.coords;
+          const near = nearestPlace(latitude, longitude);
           const updated = await api.users.updateProfile({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
+            latitude,
+            longitude,
+            ...(near ? { city: near.name, province: near.province } : null),
           });
           setUser(updated);
-          setForm((f) => ({ ...f, latitude: updated.latitude, longitude: updated.longitude }));
-          setStatus({ tone: 'success', title: 'Location saved', message: "You'll get alerts for reports and cleanups within 5 km." });
+          setForm((f) => ({
+            ...f,
+            latitude: updated.latitude,
+            longitude: updated.longitude,
+            city: updated.city || f.city,
+            province: updated.province || f.province,
+          }));
+          setStatus({
+            tone: 'success',
+            title: 'Location saved',
+            message: near
+              ? `Nearest town is ${near.name}, ${near.province}. You'll get alerts for reports and cleanups within 5 km.`
+              : "You'll get alerts for reports and cleanups within 5 km.",
+          });
         } catch (error) {
           setStatus({ tone: 'danger', title: 'Location not saved', message: error.message });
         } finally {
@@ -109,6 +144,7 @@ export default function Profile() {
       }
       setUser(updated);
       setEditing(false);
+      if (askedForLocation) setSearchParams({}, { replace: true });
       setStatus({ tone: 'success', title: 'Saved', message: 'Your profile is up to date.' });
     } catch (error) {
       setStatus({ tone: 'danger', title: "That didn't save", message: error.message });
@@ -183,15 +219,51 @@ export default function Profile() {
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Contact details</span>
-        <Input label="Full name" value={form.fullName} onChange={set('fullName')} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--space-3)' }}>
+          <Input
+            label="First name"
+            value={form.firstName}
+            onChange={set('firstName')}
+            error={form.firstName ? nameError(form.firstName, 'first name') : undefined}
+          />
+          <Input
+            label="Last name"
+            value={form.lastName}
+            onChange={set('lastName')}
+            error={form.lastName ? nameError(form.lastName, 'last name') : undefined}
+          />
+        </div>
         <Input label="Email" type="email" value={user.email} disabled />
         <Input label="Phone" type="tel" value={form.phone} onChange={set('phone')} />
       </section>
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <section ref={locationRef} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Location</span>
-        <Input label="City or town" iconLeft="map-pin" placeholder="e.g. Negombo" value={form.city} onChange={set('city')} />
-        <Select label="Province" placeholder="Select your province" options={PROVINCES} value={form.province} onChange={set('province')} />
+        <Select
+          label="City or town"
+          placeholder={form.province ? `Select a town in ${form.province}` : 'Select your city or town'}
+          options={citiesIn(form.province)}
+          value={form.city}
+          onChange={(e) => {
+            const city = e.target.value;
+            setForm((f) => ({ ...f, city, province: provinceOf(city) || f.province }));
+          }}
+        />
+        <Select
+          label="Province"
+          placeholder="Select your province"
+          options={PROVINCES}
+          value={form.province}
+          onChange={(e) => {
+            const province = e.target.value;
+            // A town from another province no longer belongs here.
+            setForm((f) => ({
+              ...f,
+              province,
+              city: province && provinceOf(f.city) && provinceOf(f.city) !== province ? '' : f.city,
+            }));
+          }}
+        />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)' }}>
           <Button variant="secondary" size="sm" iconLeft="map-pin" onClick={captureLocation} disabled={locating} style={{ alignSelf: 'flex-start' }}>
             {locating ? 'Locating…' : hasLocation ? 'Update to my current location' : 'Use my current location'}
@@ -263,7 +335,7 @@ export default function Profile() {
         <Button fullWidth onClick={save} loading={busy} disabled={busy}>
           {busy ? 'Saving…' : 'Save changes'}
         </Button>
-        <Button variant="secondary" onClick={() => { setStatus(null); setEditing(false); }} disabled={busy}>
+        <Button variant="secondary" onClick={stopEditing} disabled={busy}>
           Cancel
         </Button>
       </div>

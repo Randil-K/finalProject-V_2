@@ -12,6 +12,7 @@ import lk.tideline.cleanup.model.ProjectParticipant;
 import lk.tideline.cleanup.model.ProjectStatus;
 import lk.tideline.cleanup.model.Severity;
 import lk.tideline.cleanup.model.ProjectUpdate;
+import lk.tideline.cleanup.model.ProjectUpdateComment;
 import lk.tideline.cleanup.model.UpdateStage;
 
 import java.time.Instant;
@@ -59,10 +60,16 @@ public final class ProjectDtos {
             /** When the call was widened because too few people had joined. */
             Instant recruitmentWidenedAt,
             /** When the last of the people and equipment was pledged; null while anything is missing. */
-            Instant resourcesGatheredAt
+            Instant resourcesGatheredAt,
+            /** Set when the owner left the progress updates to whoever joins the cleanup. */
+            boolean progressOpenToParticipants,
+            /** Whether the signed-in viewer may post progress on this cleanup right now. */
+            boolean canPostProgress
     ) {
-        public static ProjectResponse from(CleanupProject project, long volunteers, long divers, Boolean joined,
-                                           List<ParticipantResponse> participants, boolean official) {
+        public static ProjectResponse from(CleanupProject project, boolean canPostProgress,
+                                           long volunteers, long divers, Boolean joined,
+                                           List<ParticipantResponse> participants, boolean official,
+                                           List<ProjectUpdateResponse> updates) {
             var report = project.getReport();
             boolean finalized = project.getResourcesFinalizedAt() != null;
             return new ProjectResponse(
@@ -86,10 +93,7 @@ public final class ProjectDtos {
                     UserDtos.UserSummary.from(project.getOwner()),
                     volunteers,
                     divers,
-                    project.getUpdates().stream()
-                            .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
-                            .map(ProjectUpdateResponse::from)
-                            .toList(),
+                    updates,
                     project.getStartedAt(),
                     project.getCompletedAt(),
                     project.getCreatedAt(),
@@ -102,7 +106,9 @@ public final class ProjectDtos {
                             : null,
                     project.getRecruitmentRadiusKm(),
                     project.getRecruitmentWidenedAt(),
-                    project.getResourcesGatheredAt());
+                    project.getResourcesGatheredAt(),
+                    project.isProgressOpenToParticipants(),
+                    canPostProgress);
         }
     }
 
@@ -151,11 +157,28 @@ public final class ProjectDtos {
 
     public record ProjectUpdateRequest(
             @NotNull UpdateStage stage,
-            @NotBlank @Size(max = 1000) String note,
-            String imageUrl,
-            @Min(0) @Max(100) Integer completionPercentage,
-            Double debrisRemovedKg
+            /** Optional — a photo can speak for itself. */
+            @Size(max = 1000) String note
     ) {
+    }
+
+    /** What a viewer says about one update. */
+    public record UpdateCommentRequest(@NotBlank @Size(max = 1000) String body) {
+    }
+
+    public record UpdateCommentResponse(
+            Long id,
+            UserDtos.UserSummary author,
+            String body,
+            Instant createdAt
+    ) {
+        public static UpdateCommentResponse from(ProjectUpdateComment comment) {
+            return new UpdateCommentResponse(
+                    comment.getId(),
+                    UserDtos.UserSummary.from(comment.getAuthor()),
+                    comment.getBody(),
+                    comment.getCreatedAt());
+        }
     }
 
     public record ProjectUpdateResponse(
@@ -165,16 +188,24 @@ public final class ProjectDtos {
             String imageUrl,
             Integer completionPercentage,
             UserDtos.UserSummary author,
+            long likeCount,
+            /** Whether the person looking has liked it; null when nobody is signed in. */
+            Boolean likedByMe,
+            List<UpdateCommentResponse> comments,
             Instant createdAt
     ) {
-        public static ProjectUpdateResponse from(ProjectUpdate update) {
+        public static ProjectUpdateResponse from(ProjectUpdate update, long likeCount, Boolean likedByMe,
+                                                 List<UpdateCommentResponse> comments) {
             return new ProjectUpdateResponse(
                     update.getId(),
                     update.getStage(),
-                    update.getNote(),
+                    update.getNote() == null || update.getNote().isBlank() ? null : update.getNote(),
                     update.getImageUrl(),
                     update.getCompletionPercentage(),
                     UserDtos.UserSummary.from(update.getAuthor()),
+                    likeCount,
+                    likedByMe,
+                    comments,
                     update.getCreatedAt());
         }
     }

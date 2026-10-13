@@ -6,6 +6,7 @@ import ChipButton from '../../components/ChipButton.jsx';
 import DocumentPicker from '../../components/DocumentPicker.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { CERTIFICATION_OPTIONS, PROVINCES } from '../../lib/format.js';
+import { emailError, nameError, nicError, passwordError, phoneError, tidyNic } from '../../lib/validation.js';
 
 const ROLES = [
   { value: 'CITIZEN', label: 'Community member', icon: 'user' },
@@ -79,8 +80,10 @@ export default function Register() {
 
   const [role, setRole] = React.useState('DIVER');
   const [form, setForm] = React.useState({
-    fullName: '',
+    firstName: '',
+    lastName: '',
     email: '',
+    nic: '',
     phone: '',
     province: '',
     password: '',
@@ -94,27 +97,42 @@ export default function Register() {
   const [error, setError] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const [pending, setPending] = React.useState(null);
+  const [showProblems, setShowProblems] = React.useState(false);
+
+  /** Everything wrong with the form right now, field by field. */
+  const problems = {
+    firstName: nameError(form.firstName, 'first name'),
+    lastName: nameError(form.lastName, 'last name'),
+    email: emailError(form.email),
+    nic: nicError(form.nic),
+    phone: phoneError(form.phone),
+    password: passwordError(form.password),
+    organizationName: (role === 'ORGANIZATION' || OFFICIAL_ROLES.includes(role)) && !form.organizationName.trim()
+      ? (role === 'ORGANIZATION' ? "Enter your organisation's name." : 'Enter the department or agency you work for.')
+      : null,
+    websiteUrl: role === 'ORGANIZATION' && !form.websiteUrl.trim()
+      ? "Add your organisation's website so an administrator can check it."
+      : null,
+  };
+  const problem = (field) => (showProblems ? problems[field] : undefined);
 
   const set = (key) => (event) => setForm((f) => ({ ...f, [key]: event.target.value }));
 
   async function submit(event) {
     event.preventDefault();
     setError(null);
+    setShowProblems(true);
 
+    if (Object.values(problems).some(Boolean)) {
+      setError('Check the details marked below and try again.');
+      return;
+    }
     if (role === 'DIVER' && !certificates.length) {
       setError('Attach at least one diving certificate so an administrator can verify you.');
       return;
     }
-    if (OFFICIAL_ROLES.includes(role) && !form.organizationName.trim()) {
-      setError('Add the department or agency you work for.');
-      return;
-    }
     if (OFFICIAL_ROLES.includes(role) && !certificates.length) {
       setError('Attach proof of your appointment, such as a staff ID or appointment letter.');
-      return;
-    }
-    if (role === 'ORGANIZATION' && !form.websiteUrl.trim()) {
-      setError("Add your organisation's website so an administrator can check it.");
       return;
     }
 
@@ -122,8 +140,10 @@ export default function Register() {
     try {
       const result = await register(
         {
-          fullName: form.fullName,
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
           email: form.email,
+          nic: tidyNic(form.nic),
           password: form.password,
           phone: form.phone || null,
           role,
@@ -181,9 +201,21 @@ export default function Register() {
             </Alert>
           ) : null}
 
-          <Input label="Full name" placeholder="e.g. Hiruna Perera" required value={form.fullName} onChange={set('fullName')} />
-          <Input label="Email" type="email" placeholder="you@example.lk" required value={form.email} onChange={set('email')} />
-          <Input label="Phone" type="tel" placeholder="+94 7X XXX XXXX" value={form.phone} onChange={set('phone')} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--space-3)' }}>
+            <Input label="First name" placeholder="e.g. Hiruna" required value={form.firstName} onChange={set('firstName')} error={problem('firstName')} />
+            <Input label="Last name" placeholder="e.g. Perera" required value={form.lastName} onChange={set('lastName')} error={problem('lastName')} />
+          </div>
+          <Input label="Email" type="email" placeholder="you@example.lk" required value={form.email} onChange={set('email')} error={problem('email')} />
+          <Input
+            label="NIC number"
+            required
+            placeholder="200012345678 or 921234567V"
+            hint="Your national identity card — administrators check it when they verify accounts."
+            value={form.nic}
+            onChange={set('nic')}
+            error={problem('nic')}
+          />
+          <Input label="Phone" type="tel" placeholder="+94 71 234 5678" hint="Optional." value={form.phone} onChange={set('phone')} error={problem('phone')} />
           <Select label="Province" placeholder="Select your province" options={PROVINCES} value={form.province} onChange={set('province')} />
 
           {role === 'DIVER' ? (
@@ -235,7 +267,7 @@ export default function Register() {
 
           {role === 'ORGANIZATION' ? (
             <>
-              <Input label="Organisation name" required placeholder="e.g. Blue Resurgence NGO" value={form.organizationName} onChange={set('organizationName')} />
+              <Input label="Organisation name" required placeholder="e.g. Blue Resurgence NGO" value={form.organizationName} onChange={set('organizationName')} error={problem('organizationName')} />
               <Select label="Organisation type" placeholder="Select type" options={ORGANIZATION_TYPES} value={form.organizationType} onChange={set('organizationType')} />
               <Input
                 label="Website"

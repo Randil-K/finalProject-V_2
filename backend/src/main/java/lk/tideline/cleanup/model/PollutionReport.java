@@ -1,6 +1,7 @@
 package lk.tideline.cleanup.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -44,6 +45,10 @@ public class PollutionReport {
     private String locationName;
 
     private String province;
+
+    /** One of Sri Lanka's twenty-five districts, so officers can work their own patch. */
+    @Column(length = 50)
+    private String district;
 
     @Column(nullable = false)
     private Double latitude;
@@ -103,6 +108,14 @@ public class PollutionReport {
     private Instant escalatedAt;
     private Instant decidedAt;
     private Instant verifiedAt;
+
+    /**
+     * Whether the reporter took on the project owner's responsibilities when they filed this.
+     * If they did not, everyone who joins the cleanup may post its progress instead.
+     */
+    @ColumnDefault("true")
+    @Column(nullable = false)
+    private boolean reporterWillLead = true;
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();

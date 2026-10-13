@@ -10,7 +10,9 @@ import lk.tideline.cleanup.repository.ReportCommentRepository;
 import lk.tideline.cleanup.repository.UserRepository;
 import lk.tideline.cleanup.repository.VerificationVoteRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -89,6 +91,18 @@ public class ReportService {
                 infoRequests.latestStatus(report), myVote, hideNote);
     }
 
+    /**
+     * Confirming, disputing and commenting are how the community makes its case to the administrator.
+     * Once the administrator has decided, that case is made and the report closes to further input.
+     */
+    private boolean communityInputClosed(PollutionReport report) {
+        return report.getAdminDecision() == ReviewDecision.APPROVED
+                || report.getAdminDecision() == ReviewDecision.REJECTED
+                || report.getStatus() == ReportStatus.APPROVED
+                || report.getStatus() == ReportStatus.REJECTED
+                || report.getStatus() == ReportStatus.CLEANED;
+    }
+
     @Transactional(readOnly = true)
     public Page<ReportResponse> search(ReportStatus status, Severity severity, String province, Pageable pageable) {
         return search(status, severity, province, false, pageable);
@@ -97,20 +111,66 @@ public class ReportService {
     @Transactional(readOnly = true)
     public Page<ReportResponse> search(ReportStatus status, Severity severity, String province, boolean reviewQueue,
                                        Pageable pageable) {
+        return search(status, severity, province, reviewQueue, false, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ReportResponse> search(ReportStatus status, Severity severity, String province, boolean reviewQueue,
+                                       boolean oldestFirst, User viewer, Pageable pageable) {
+        Pageable page = ordered(pageable, oldestFirst);
         // Approved reports are projects now; they're found through the projects API instead.
         if (status != null && status.becameProject()) {
-            return Page.empty(pageable);
+            return Page.empty(page);
         }
         if (reviewQueue) {
             // Reports reach the administrators only once the community has verified them.
             if (status != null && !ReportStatus.REVIEW_QUEUE.contains(status)) {
-                return Page.empty(pageable);
+                return Page.empty(page);
             }
-            return reportRepository.searchIn(status == null ? ReportStatus.REVIEW_QUEUE : List.of(status),
-                    severity, province, pageable).map(this::toResponse);
+            if (status == null) {
+                // Approvals still waiting for their resources belong in the officer's queue, or nobody
+                // would find them again. Resourcing is not the administrator's step, so theirs leaves them out.
+                boolean administrator = viewer != null && viewer.getRole() == Role.ADMIN;
+                if (!administrator) {
+                    return reportRepository.searchQueue(ReportStatus.REVIEW_QUEUE, ReportStatus.APPROVED,
+                            severity, province, page).map(this::toResponse);
+                }
+                return reportRepository.searchIn(ReportStatus.REVIEW_QUEUE, severity, province, page)
+                        .map(this::toResponse);
+            }
+            return reportRepository.searchIn(List.of(status), severity, province, page).map(this::toResponse);
         }
-        return reportRepository.search(status, ReportStatus.BECAME_PROJECT, severity, province, pageable)
+        return reportRepository.search(status, ReportStatus.HIDDEN_FROM_FEED, severity, feedArea(province, viewer), page)
                 .map(this::toResponse);
+    }
+
+    /**
+     * A signed-in person's feed is their own province: pollution is only worth hearing about if it is
+     * close enough to go and clean. Visitors who have told us nothing see the whole coast.
+     */
+    private String feedArea(String province, User viewer) {
+        if (province != null && !province.isBlank()) {
+            return province;
+        }
+        if (viewer == null || viewer.getProvince() == null || viewer.getProvince().isBlank()) {
+            return null;
+        }
+        return viewer.getProvince();
+    }
+
+    private Pageable ordered(Pageable pageable, boolean oldestFirst) {
+        // Reported-at, then id, so reports filed in the same second keep a settled order.
+        Sort.Direction direction = oldestFirst ? Sort.Direction.ASC : Sort.Direction.DESC;
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(direction, "createdAt").and(Sort.by(direction, "id")));
+    }
+
+    /** The queue's "waiting for resource assigning": approved cleanups nobody has resourced yet. */
+    @Transactional(readOnly = true)
+    public Page<ReportResponse> awaitingResources(Severity severity, String province, boolean oldestFirst,
+                                                  Pageable pageable) {
+        return reportRepository.searchAwaitingResources(ReportStatus.APPROVED, severity, province,
+                ordered(pageable, oldestFirst)).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -143,10 +203,13 @@ public class ReportService {
         report.setSeverity(request.severity());
         report.setLocationName(request.locationName());
         report.setProvince(request.province());
+        report.setDistrict(ContactDetails.requireKnownDistrict(request.district()));
         report.setLatitude(request.latitude());
         report.setLongitude(request.longitude());
         report.setReporter(reporter);
         report.setStatus(ReportStatus.PENDING);
+        // Nothing said means the reporter leads: that is what the policy asks them to agree to.
+        report.setReporterWillLead(request.willLeadCleanup() == null || request.willLeadCleanup());
 
         if (request.photoUrls() != null) {
             for (String url : request.photoUrls()) {
@@ -188,10 +251,8 @@ public class ReportService {
     public ReportResponse vote(Long reportId, User voter, boolean confirmed) {
         PollutionReport report = get(reportId);
 
-        if (report.getStatus() == ReportStatus.REJECTED
-                || report.getStatus() == ReportStatus.APPROVED
-                || report.getStatus() == ReportStatus.CLEANED) {
-            throw new IllegalStateException("Voting is closed for this report.");
+        if (communityInputClosed(report)) {
+            throw new IllegalStateException("Voting is closed — an administrator has already decided on this report.");
         }
         if (report.getReporter().getId().equals(voter.getId())) {
             throw new IllegalStateException("You can't vote on your own report.");
@@ -265,7 +326,7 @@ public class ReportService {
         PollutionReport report = get(reportId);
         Map<Long, List<CommentReaction>> reactions = reactionRepository.findByReport(report).stream()
                 .collect(Collectors.groupingBy(reaction -> reaction.getComment().getId()));
-        return commentRepository.findByReportOrderByCreatedAtAsc(report).stream()
+        return commentRepository.findByReportOrderByCreatedAtAscIdAsc(report).stream()
                 .map(comment -> CommentResponse.from(comment, reactions.getOrDefault(comment.getId(), List.of()), viewer))
                 .toList();
     }
@@ -273,6 +334,14 @@ public class ReportService {
     @Transactional
     public CommentResponse comment(Long reportId, User author, CommentRequest request) {
         PollutionReport report = get(reportId);
+
+        // Reviewers can still record a note; for everyone else the discussion closes with the decision.
+        boolean reviewer = author.getRole() == Role.ADMIN || author.getRole() == Role.AUTHORITY;
+        if (!reviewer && communityInputClosed(report)) {
+            throw new IllegalStateException(
+                    "The discussion is closed — an administrator has already decided on this report.");
+        }
+
         ReportComment comment = new ReportComment();
         comment.setReport(report);
         comment.setAuthor(author);

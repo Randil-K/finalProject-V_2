@@ -119,23 +119,26 @@ class RecruitmentTests {
     }
 
     @Test
-    void theAdministratorsHearOnceEverythingIsPledged() {
+    void theAdministratorsHearOnceThePeopleHaveJoined() {
         User admin = user(Role.ADMIN, null, null);
         User near = userAt(6.0600, 80.2200);
         CleanupProject project = approvedProject();
         Alert call = callsFor(project, near).get(0);
 
-        alerts.reply(call.getId(), new AlertReplyRequest(AlertReply.JOINED,
-                List.of(new EquipmentLine("Gloves", 4))), near);
+        // Nothing is promised towards the gloves: equipment does not hold the project back.
+        alerts.reply(call.getId(), new AlertReplyRequest(AlertReply.JOINED, null), near);
 
         assertThat(projectRepository.findById(project.getId()).orElseThrow().getResourcesGatheredAt()).isNotNull();
-        assertThat(alertRepository.findByRecipientOrderByCreatedAtDesc(admin))
+        assertThat(projects.view(project.getId(), near).resources().equipment())
+                .as("the gloves are still outstanding")
+                .anySatisfy(item -> assertThat(item.secured()).isFalse());
+        assertThat(alertRepository.findByRecipientOrderByCreatedAtDescIdDesc(admin))
                 .filteredOn(alert -> alert.getType() == AlertType.RESOURCES_GATHERED)
                 .singleElement()
                 .satisfies(alert -> assertThat(alert.getTitle()).startsWith("Resources gathered for "));
-        assertThat(alertRepository.findByRecipientOrderByCreatedAtDesc(project.getOwner()))
+        assertThat(alertRepository.findByRecipientOrderByCreatedAtDescIdDesc(project.getOwner()))
                 .extracting(Alert::getTitle)
-                .contains("Your cleanup has everything it needs");
+                .contains("Your cleanup has everyone it needs");
     }
 
     /** One volunteer and four gloves, so a single person joining can fill it. */
@@ -162,7 +165,7 @@ class RecruitmentTests {
     }
 
     private List<Alert> callsFor(CleanupProject project, User user) {
-        return alertRepository.findByRecipientOrderByCreatedAtDesc(user).stream()
+        return alertRepository.findByRecipientOrderByCreatedAtDescIdDesc(user).stream()
                 .filter(alert -> alert.getType() == AlertType.HELP_NEEDED)
                 .filter(alert -> project.getId().equals(alert.getProjectId()))
                 .toList();

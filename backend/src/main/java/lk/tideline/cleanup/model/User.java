@@ -20,8 +20,25 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Kept apart so the person can edit either half; {@link #fullName} is the two joined for display. */
+    @Column(length = 50)
+    private String firstName;
+
+    @Column(length = 50)
+    private String lastName;
+
     @Column(nullable = false)
     private String fullName;
+
+    /** Sets both halves and the display name together, so they cannot drift apart. */
+    public void setName(String first, String last) {
+        this.firstName = first == null ? null : first.trim();
+        this.lastName = last == null ? null : last.trim();
+        this.fullName = java.util.stream.Stream.of(this.firstName, this.lastName)
+                .filter(part -> part != null && !part.isBlank())
+                .reduce((a, b) -> a + " " + b)
+                .orElse(this.fullName);
+    }
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -37,6 +54,10 @@ public class User {
     private Role role = Role.CITIZEN;
 
     private String province;
+
+    /** National identity card: twelve digits, or the old nine digits and a V or X. */
+    @Column(length = 12)
+    private String nic;
     private String city;
 
     private Double latitude;

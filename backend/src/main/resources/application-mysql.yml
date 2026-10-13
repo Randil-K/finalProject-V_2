@@ -2,7 +2,7 @@
 # A host that supplies a full JDBC URL can set SPRING_DATASOURCE_URL instead of the DB_* values.
 spring:
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tideline}?createDatabaseIfNotExist=true&serverTimezone=Asia/Colombo
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tideline}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Colombo
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
@@ -12,7 +12,8 @@ spring:
       ddl-auto: update
     properties:
       hibernate.format_sql: false
-      hibernate.dialect: lk.tideline.cleanup.config.dialect.TidelineMySQLDialect
+      # MariaDB (what XAMPP calls MySQL) needs TidelineMariaDBDialect instead.
+      hibernate.dialect: ${DB_DIALECT:lk.tideline.cleanup.config.dialect.TidelineMySQLDialect}
 
   h2:
     console:

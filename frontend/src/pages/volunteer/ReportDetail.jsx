@@ -12,7 +12,7 @@ import { Async } from '../../components/AsyncState.jsx';
 import { api } from '../../api/index.js';
 import { useApi } from '../../hooks/useApi.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
-import { CLOSED_REPORT_STATUSES, formatDate, locationLine } from '../../lib/format.js';
+import { communityInputClosed, formatDate, locationLine } from '../../lib/format.js';
 import { mediaUrl } from '../../api/client.js';
 
 const projectHref = (projectId) => `/app/cleanups/${projectId}`;
@@ -41,7 +41,7 @@ export default function ReportDetail() {
   return (
     <Async state={reportState}>
       {(report) => {
-        const votingClosed = CLOSED_REPORT_STATUSES.includes(report.status);
+        const votingClosed = communityInputClosed(report);
         const isReporter = user?.id === report.reporter?.id;
         // Once the government officer approves, the report lives on only as its project.
         if (report.projectId) return <Navigate to={projectHref(report.projectId)} replace />;
@@ -78,7 +78,9 @@ export default function ReportDetail() {
 
             <CommunityVerificationCard report={report}>
               {votingClosed ? (
-                <p style={{ font: 'var(--text-caption)', color: 'var(--text-muted)' }}>Voting has closed for this report.</p>
+                <p style={{ font: 'var(--text-caption)', color: 'var(--text-muted)' }}>
+                  Voting has closed — an administrator has decided on this report.
+                </p>
               ) : user ? (
                 <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 4 }}>
                   <Button
@@ -128,7 +130,7 @@ export default function ReportDetail() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Discussion</span>
-              <Discussion reportId={id} user={user} loginFrom={`/app/report/${id}`} />
+              <Discussion reportId={id} user={user} loginFrom={`/app/report/${id}`} closed={votingClosed} />
             </div>
           </div>
         );

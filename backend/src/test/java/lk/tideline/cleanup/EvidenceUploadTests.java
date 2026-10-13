@@ -77,7 +77,7 @@ class EvidenceUploadTests {
 
     private static CreateReportRequest request() {
         return new CreateReportRequest("Plastic on the shore", "Bottles along the tide line.", Severity.MEDIUM,
-                "Galle", "Southern Province", 6.03, 80.21, null);
+                "Galle", "Southern Province", "Galle", 6.03, 80.21, null, true);
     }
 
     private User reporter() {

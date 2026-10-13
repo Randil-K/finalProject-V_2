@@ -1,6 +1,7 @@
 package lk.tideline.cleanup;
 
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectResponse;
+import lk.tideline.cleanup.dto.ProjectDtos.ResourcesRequest;
 import lk.tideline.cleanup.dto.ProjectDtos.ProjectUpdateRequest;
 import lk.tideline.cleanup.dto.ReportDtos.AuthorityDecisionRequest;
 import lk.tideline.cleanup.dto.ReportDtos.ReportResponse;
@@ -79,7 +80,7 @@ class CleanupLoopTests {
 
         projects.join(project.id(), volunteer, null);
         projects.addUpdate(project.id(),
-                new ProjectUpdateRequest(UpdateStage.AFTER, "All clear.", null, 100, 12.5), reporter);
+                new ProjectUpdateRequest(UpdateStage.AFTER, "All clear."), null, reporter);
 
         assertThat(reports.findById(project.reportId()).orElseThrow().getStatus()).isEqualTo(ReportStatus.CLEANED);
         assertThat(titlesFor(volunteer)).contains("Cleanup complete");
@@ -92,14 +93,16 @@ class CleanupLoopTests {
     void onlyTheProjectOwnerCanRecordProgress() {
         User reporter = user(Role.CITIZEN);
         ProjectResponse project = approve(reporter);
-        ProjectUpdateRequest update = new ProjectUpdateRequest(UpdateStage.DURING, "Half done.", null, 50, 3.0);
+        ProjectUpdateRequest update = new ProjectUpdateRequest(UpdateStage.DURING, "Half done.");
 
         for (Role official : List.of(Role.AUTHORITY, Role.ADMIN, Role.CITIZEN)) {
-            assertThatThrownBy(() -> projects.addUpdate(project.id(), update, user(official)))
+            assertThatThrownBy(() -> projects.addUpdate(project.id(), update, null, user(official)))
                     .as(official + " cannot post progress")
                     .isInstanceOf(AccessDeniedException.class);
         }
-        assertThat(projects.addUpdate(project.id(), update, reporter).completionPercentage()).isEqualTo(50);
+        assertThat(projects.addUpdate(project.id(), update, null, reporter).updates())
+                .singleElement()
+                .satisfies(posted -> assertThat(posted.note()).isEqualTo("Half done."));
     }
 
     @Test
@@ -155,7 +158,7 @@ class CleanupLoopTests {
                 .hasMessageContaining("complete");
 
         projects.addUpdate(project.id(),
-                new ProjectUpdateRequest(UpdateStage.AFTER, "Done.", null, 100, null), owner);
+                new ProjectUpdateRequest(UpdateStage.AFTER, "Done."), null, owner);
 
         assertThatThrownBy(() -> projects.mark(project.id(), participantId, 4, volunteer))
                 .isInstanceOf(IllegalStateException.class);
@@ -165,15 +168,62 @@ class CleanupLoopTests {
         assertThat(titlesFor(volunteer)).contains("Your contribution was rated");
     }
 
+    @Test
+    void aReporterWhoDeclinedToLeadLeavesTheProgressToWhoeverJoins() {
+        User reporter = user(Role.CITIZEN);
+        User volunteer = user(Role.CITIZEN);
+        User bystander = user(Role.CITIZEN);
+        ProjectResponse project = approve(reporter, false);
+        projects.join(project.id(), volunteer, null);
+
+        assertThat(projects.view(project.id(), volunteer).progressOpenToParticipants()).isTrue();
+        assertThat(projects.view(project.id(), volunteer).canPostProgress()).isTrue();
+        assertThat(projects.view(project.id(), bystander).canPostProgress()).isFalse();
+
+        assertThatThrownBy(() -> projects.addUpdate(project.id(),
+                new ProjectUpdateRequest(UpdateStage.DURING, "Passing by."), null, bystander))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Join this cleanup");
+
+        assertThat(projects.addUpdate(project.id(),
+                new ProjectUpdateRequest(UpdateStage.DURING, "Half the nets are out."), null, volunteer).updates())
+                .singleElement()
+                .satisfies(posted -> assertThat(posted.author().fullName()).isEqualTo(volunteer.getFullName()));
+    }
+
+    @Test
+    void aReporterWhoAcceptedKeepsTheProgressToThemselves() {
+        User reporter = user(Role.CITIZEN);
+        User volunteer = user(Role.CITIZEN);
+        ProjectResponse project = approve(reporter);
+        projects.join(project.id(), volunteer, null);
+
+        assertThat(projects.view(project.id(), reporter).progressOpenToParticipants()).isFalse();
+        assertThat(projects.view(project.id(), reporter).canPostProgress()).isTrue();
+        assertThat(projects.view(project.id(), volunteer).canPostProgress()).isFalse();
+
+        assertThatThrownBy(() -> projects.addUpdate(project.id(),
+                new ProjectUpdateRequest(UpdateStage.DURING, "Helping out."), null, volunteer))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Only the project owner");
+    }
+
     private ProjectResponse approve(User reporter) {
-        PollutionReport report = escalatedReport(reporter);
+        return approve(reporter, true);
+    }
+
+    private ProjectResponse approve(User reporter, boolean willLead) {
+        PollutionReport report = escalatedReport(reporter, willLead);
         ReportResponse decided = reportService.decideAsAuthority(report.getId(),
                 new AuthorityDecisionRequest(ReviewDecision.APPROVED, "Approved."), user(Role.AUTHORITY));
+        // A cleanup opens to volunteers only once the officer has assigned its resources.
+        projects.updateResources(decided.projectId(),
+                new ResourcesRequest(4, 1, List.of(), true), user(Role.AUTHORITY));
         return projects.view(decided.projectId(), reporter);
     }
 
     private List<String> titlesFor(User user) {
-        return alerts.findByRecipientOrderByCreatedAtDesc(user).stream().map(Alert::getTitle).toList();
+        return alerts.findByRecipientOrderByCreatedAtDescIdDesc(user).stream().map(Alert::getTitle).toList();
     }
 
     private User user(Role role) {
@@ -186,7 +236,12 @@ class CleanupLoopTests {
     }
 
     private PollutionReport escalatedReport(User reporter) {
+        return escalatedReport(reporter, true);
+    }
+
+    private PollutionReport escalatedReport(User reporter, boolean willLead) {
         PollutionReport report = new PollutionReport();
+        report.setReporterWillLead(willLead);
         report.setReference("T-" + UUID.randomUUID());
         report.setTitle("Test debris");
         report.setDescription("Test report.");

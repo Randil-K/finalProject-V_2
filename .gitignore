@@ -24,6 +24,12 @@ backend/uploads/
 # Local H2 database file (application-local.yml)
 backend/data/
 
+# Holds a real mail password — only the .example template is kept.
+backend/run-with-mail.cmd
+
+# H2 backups taken before the move to MySQL. The SQL dumps beside them are kept.
+backend/db/*.mv.db
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -62,6 +62,10 @@ public class AuthService {
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
             throw new IllegalStateException("An account already uses that email address.");
         }
+        String nic = request.nic().trim().toUpperCase();
+        if (userRepository.existsByNic(nic)) {
+            throw new IllegalStateException("An account already uses that NIC number.");
+        }
 
         Role role = request.role() == null ? Role.CITIZEN : request.role();
         boolean official = role == Role.ADMIN || role == Role.AUTHORITY;
@@ -93,12 +97,13 @@ public class AuthService {
         }
 
         User user = new User();
-        user.setFullName(request.fullName());
+        user.setName(request.firstName(), request.lastName());
         user.setEmail(request.email().toLowerCase());
+        user.setNic(nic);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setPhone(request.phone());
+        user.setPhone(ContactDetails.normalisePhone(request.phone()));
         user.setRole(role);
-        user.setProvince(request.province());
+        user.setProvince(ContactDetails.requireKnownProvince(request.province()));
         user.setCity(request.city());
         user.setLatitude(request.latitude());
         user.setLongitude(request.longitude());

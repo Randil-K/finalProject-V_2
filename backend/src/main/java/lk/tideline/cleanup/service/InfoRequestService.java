@@ -63,14 +63,14 @@ public class InfoRequestService {
 
     @Transactional(readOnly = true)
     public InfoRequestStatus latestStatus(PollutionReport report) {
-        return requests.findFirstByReportOrderByCreatedAtDesc(report).map(InfoRequest::getStatus).orElse(null);
+        return requests.findFirstByReportOrderByCreatedAtDescIdDesc(report).map(InfoRequest::getStatus).orElse(null);
     }
 
     @Transactional(readOnly = true)
     public List<InfoRequestResponse> list(Long reportId, User viewer) {
         PollutionReport report = report(reportId);
         requireAccess(report, viewer);
-        return requests.findByReportOrderByCreatedAtDesc(report).stream().map(InfoRequestResponse::from).toList();
+        return requests.findByReportOrderByCreatedAtDescIdDesc(report).stream().map(InfoRequestResponse::from).toList();
     }
 
     @Transactional
@@ -103,7 +103,7 @@ public class InfoRequestService {
         requests.save(request);
 
         // The critical alert has done its job once it's answered.
-        alertRepository.findByRecipientOrderByCreatedAtDesc(reporter).stream()
+        alertRepository.findByRecipientOrderByCreatedAtDescIdDesc(reporter).stream()
                 .filter(alert -> alert.getType() == AlertType.INFO_REQUESTED && report.getId().equals(alert.getReportId()))
                 .forEach(alert -> alert.setReadFlag(true));
 

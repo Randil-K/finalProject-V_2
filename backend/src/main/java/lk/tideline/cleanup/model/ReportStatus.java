@@ -21,6 +21,9 @@ public enum ReportStatus {
     /** Once approved by the authority a report lives on as a project and is no longer listed as a report. */
     public static final Set<ReportStatus> BECAME_PROJECT = Set.of(APPROVED, CLEANED);
 
+    /** Kept out of the feed's "All": projects have their own pages, and rejections have their own filter. */
+    public static final Set<ReportStatus> HIDDEN_FROM_FEED = Set.of(APPROVED, CLEANED, REJECTED);
+
     /** What the administrators' review queue lists: verified by the community, with the authority, or rejected. */
     public static final List<ReportStatus> REVIEW_QUEUE = List.of(VERIFIED, ESCALATED, REJECTED);
 

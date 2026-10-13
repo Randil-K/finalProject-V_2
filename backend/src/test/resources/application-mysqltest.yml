@@ -1,0 +1,25 @@
+# Runs the whole test suite against a real MySQL server instead of in-memory H2, to prove the
+# entity mappings are right on the database the system actually uses:
+#
+#   mvnw test -Dspring.profiles.active=mysqltest
+#
+# It uses its own database (tideline_test), created on connect and dropped and rebuilt on every run,
+# so the application's data is never touched. The day-to-day `mvnw test` stays on H2 because it needs
+# no server running and finishes in a fraction of the time.
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tideline_test}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Colombo&allowPublicKeyRetrieval=true&useSSL=false
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate.dialect: ${DB_DIALECT:lk.tideline.cleanup.config.dialect.TidelineMariaDBDialect}
+      hibernate.format_sql: false
+
+  h2:
+    console:
+      enabled: false

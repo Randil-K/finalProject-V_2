@@ -262,7 +262,8 @@ public class DemoDataSeeder {
     private User user(UserRepository users, PasswordEncoder encoder, String name, String email,
                       Role role, String province, String city, double lat, double lon) {
         User user = new User();
-        user.setFullName(name);
+        int space = name.indexOf(' ');
+        user.setName(space < 0 ? name : name.substring(0, space), space < 0 ? null : name.substring(space + 1));
         user.setEmail(email);
         user.setPasswordHash(encoder.encode(DEMO_PASSWORD));
         user.setRole(role);
@@ -332,6 +333,20 @@ public class DemoDataSeeder {
         participants.save(participant);
     }
 
+    /** The demo sites, placed in their real districts so the queue's district filter has something to work on. */
+    private static String districtFor(String location) {
+        String place = location.toLowerCase();
+        if (place.contains("negombo")) return "Gampaha";
+        if (place.contains("trincomalee")) return "Trincomalee";
+        if (place.contains("kalpitiya")) return "Puttalam";
+        if (place.contains("galle") || place.contains("unawatuna") || place.contains("hikkaduwa")) return "Galle";
+        if (place.contains("mount lavinia") || place.contains("colombo")) return "Colombo";
+        if (place.contains("tangalle") || place.contains("hambantota")) return "Hambantota";
+        if (place.contains("jaffna")) return "Jaffna";
+        if (place.contains("wadduwa") || place.contains("kalutara")) return "Kalutara";
+        return null;
+    }
+
     private PollutionReport report(PollutionReportRepository reports, User reporter, String title,
                                    String description, Severity severity, String location,
                                    String province, double lat, double lon, int photoCount) {
@@ -341,6 +356,7 @@ public class DemoDataSeeder {
         report.setSeverity(severity);
         report.setLocationName(location);
         report.setProvince(province);
+        report.setDistrict(districtFor(location));
         report.setLatitude(lat);
         report.setLongitude(lon);
         report.setReporter(reporter);

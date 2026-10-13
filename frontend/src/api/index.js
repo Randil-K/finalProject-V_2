@@ -44,7 +44,8 @@ export const api = {
   },
 
   reports: {
-    list: (params) => request(`/api/reports${query(params)}`, { auth: false }),
+    // Sent with the session when there is one: the feed narrows itself to the viewer's province.
+    list: (params) => request(`/api/reports${query(params)}`),
     // Sent with the session when there is one, so the response includes the viewer's vote.
     get: (id) => request(`/api/reports/${id}`),
     create: (payload, evidence = []) => {
@@ -82,8 +83,16 @@ export const api = {
     updateResources: (id, payload) => request(`/api/projects/${id}/resources`, { method: 'PUT', body: payload }),
     join: (id, participantRole) =>
       request(`/api/projects/${id}/participants`, { method: 'POST', body: { participantRole } }),
-    addUpdate: (id, payload) =>
-      request(`/api/projects/${id}/updates`, { method: 'POST', body: payload }),
+    likeUpdate: (id, updateId) =>
+      request(`/api/projects/${id}/updates/${updateId}/likes`, { method: 'POST' }),
+    commentOnUpdate: (id, updateId, body) =>
+      request(`/api/projects/${id}/updates/${updateId}/comments`, { method: 'POST', body: { body } }),
+    addUpdate: (id, payload, photo) => {
+      const form = new FormData();
+      form.append('data', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+      if (photo) form.append('photo', photo);
+      return request(`/api/projects/${id}/updates`, { method: 'POST', body: form });
+    },
     mark: (id, participantId, mark) =>
       request(`/api/projects/${id}/participants/${participantId}/mark`, { method: 'POST', body: { mark } }),
   },
@@ -120,6 +129,6 @@ export const api = {
   },
 
   analytics: {
-    summary: () => request('/api/analytics/summary', { auth: false }),
+    summary: (district) => request(`/api/analytics/summary${query({ district })}`, { auth: false }),
   },
 };

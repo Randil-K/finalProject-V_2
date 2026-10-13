@@ -32,9 +32,12 @@ public final class ReportDtos {
             @NotNull Severity severity,
             @NotBlank String locationName,
             String province,
+            @Size(max = 50) String district,
             @NotNull Double latitude,
             @NotNull Double longitude,
-            List<String> photoUrls
+            List<String> photoUrls,
+            /** Whether the reporter accepted the project owner's responsibilities. Absent means they did. */
+            Boolean willLeadCleanup
     ) {
     }
 
@@ -47,6 +50,7 @@ public final class ReportDtos {
             ReportStatus status,
             String locationName,
             String province,
+            String district,
             Double latitude,
             Double longitude,
             UserDtos.UserSummary reporter,
@@ -70,6 +74,8 @@ public final class ReportDtos {
             Instant decidedAt,
             /** The project this report became once the authority approved it. */
             Long projectId,
+            /** Whether that project has had its resources assigned; null when there is no project yet. */
+            Boolean resourcesAssigned,
             String projectReference,
             Instant createdAt,
             Instant verifiedAt,
@@ -89,6 +95,7 @@ public final class ReportDtos {
                     report.getStatus(),
                     report.getLocationName(),
                     report.getProvince(),
+                    report.getDistrict(),
                     report.getLatitude(),
                     report.getLongitude(),
                     UserDtos.UserSummary.from(report.getReporter()),
@@ -110,6 +117,7 @@ public final class ReportDtos {
                     UserDtos.UserSummary.from(report.getAuthorityOfficer()),
                     report.getDecidedAt(),
                     project == null ? null : project.getId(),
+                    project == null ? null : project.getResourcesFinalizedAt() != null,
                     project == null ? null : project.getReference(),
                     report.getCreatedAt(),
                     report.getVerifiedAt(),

@@ -72,10 +72,18 @@ public class ReportController {
                                      @RequestParam(required = false) Severity severity,
                                      @RequestParam(required = false) String province,
                                      @RequestParam(defaultValue = "false") boolean reviewQueue,
+                                     @RequestParam(defaultValue = "false") boolean awaitingResources,
+                                     @RequestParam(required = false) String sort,
                                      @RequestParam(defaultValue = "0") int page,
                                      @RequestParam(defaultValue = "20") int size) {
         // reviewQueue=true lists only reports the community has verified: the administrators' queue.
-        return reportService.search(status, severity, province, reviewQueue, PageRequest.of(page, size));
+        // Without an explicit province the feed narrows itself to the signed-in viewer's own.
+        if (awaitingResources) {
+            return reportService.awaitingResources(severity, province, "oldest".equalsIgnoreCase(sort),
+                    PageRequest.of(page, size));
+        }
+        return reportService.search(status, severity, province, reviewQueue,
+                "oldest".equalsIgnoreCase(sort), currentUser.find().orElse(null), PageRequest.of(page, size));
     }
 
     @GetMapping("/{id}")

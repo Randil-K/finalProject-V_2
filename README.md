@@ -12,7 +12,7 @@ administrator before they can sign in.
 
 ```
 ├── frontend/   React + Vite, built on the Tideline design system
-└── backend/    Spring Boot 3.3 + JPA + JWT, H2 for dev and MySQL for the target deployment
+└── backend/    Spring Boot 3.3 + JPA + JWT, MySQL
 ```
 
 ## Run both
@@ -24,6 +24,10 @@ cd frontend && npm install && npm run dev
 ```bash
 cd backend && ./mvnw spring-boot:run
 ```
+
+The backend needs MySQL running first — in XAMPP, Control Panel → MySQL → Start. It creates the
+`tideline` database and its tables on the first run. Without a database server, start it with
+`./mvnw spring-boot:run -Dspring-boot.run.profiles=h2` instead.
 
 Frontend on `http://localhost:5173`, API on `http://localhost:8080`. The frontend reads and
 writes live API data — Vite proxies `/api` to the backend, so there is no CORS setup in

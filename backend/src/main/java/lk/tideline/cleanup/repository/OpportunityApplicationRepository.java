@@ -14,5 +14,5 @@ public interface OpportunityApplicationRepository extends JpaRepository<Opportun
 
     List<OpportunityApplication> findByOpportunity(Opportunity opportunity);
 
-    List<OpportunityApplication> findByDiverOrderByCreatedAtDesc(User diver);
+    List<OpportunityApplication> findByDiverOrderByCreatedAtDescIdDesc(User diver);
 }

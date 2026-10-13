@@ -17,9 +17,25 @@ public interface ProjectParticipantRepository extends JpaRepository<ProjectParti
 
     List<ProjectParticipant> findByUser(User user);
 
-    List<ProjectParticipant> findByProjectOrderByJoinedAtAsc(CleanupProject project);
+    List<ProjectParticipant> findByProjectOrderByJoinedAtAscIdAsc(CleanupProject project);
 
     long countByProjectAndParticipantRole(CleanupProject project, ParticipantRole participantRole);
+
+    /** Everyone who joined a cleanup, or only those in one district. */
+    @Query("""
+            select count(p) from ProjectParticipant p left join p.project pr left join pr.report r
+            where (:district is null or r.district = :district)
+            """)
+    long countInDistrict(@Param("district") String district);
+
+    /** How many people joined a cleanup in each province. */
+    @Query("""
+            select pr.province, count(p) from ProjectParticipant p
+            join p.project pr left join pr.report r
+            where (:district is null or r.district = :district)
+            group by pr.province order by count(p) desc
+            """)
+    List<Object[]> countGroupedByProjectProvince(@Param("district") String district);
 
     /** Average organiser rating (1-5) across the cleanups this user took part in; null if none yet. */
     @Query("select avg(p.contributionMark) from ProjectParticipant p where p.user.id = :userId and p.contributionMark is not null")

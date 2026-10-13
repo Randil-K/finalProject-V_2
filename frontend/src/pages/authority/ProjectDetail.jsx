@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Icon, IconButton, Badge, Alert } from '../../design-system';
 import PhotoPlaceholder from '../../components/PhotoPlaceholder.jsx';
 import ProjectProgress from '../../components/ProjectProgress.jsx';
-import ProjectTimeline from '../../components/ProjectTimeline.jsx';
+import ProjectStory from '../../components/ProjectStory.jsx';
 import ProgressUpdateForm from '../../components/ProgressUpdateForm.jsx';
 import ProjectOrigin from '../../components/ProjectOrigin.jsx';
 import ProjectStatusBar from '../../components/ProjectStatusBar.jsx';
@@ -28,8 +28,8 @@ export default function ProjectDetail() {
   return (
     <Async state={state}>
       {(project) => {
-        // Only the project owner records progress; officials follow it here.
-        const canPost = project.status !== 'COMPLETED' && user?.id === project.owner?.id;
+        // The owner records progress — or anyone who joined, when the owner left it open.
+        const canPost = project.canPostProgress;
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', maxWidth: 820 }}>
@@ -91,7 +91,7 @@ export default function ProjectDetail() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               <span style={{ font: 'var(--text-label)', color: 'var(--text-heading)' }}>Progress timeline</span>
-              <ProjectTimeline updates={project.updates} />
+              <ProjectStory project={project} onChanged={state.setData} />
             </div>
 
             {canPost ? <ProgressUpdateForm projectId={project.id} onUpdated={state.setData} /> : null}

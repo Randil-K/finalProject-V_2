@@ -5,7 +5,9 @@ import lk.tideline.cleanup.dto.ProjectDtos.*;
 import lk.tideline.cleanup.model.ProjectStatus;
 import lk.tideline.cleanup.service.CurrentUserService;
 import lk.tideline.cleanup.service.ProjectService;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -54,8 +56,24 @@ public class ProjectController {
     }
 
     /** Module 7 — before / during / after progress evidence. */
-    @PostMapping("/{id}/updates")
-    public ProjectResponse addUpdate(@PathVariable Long id, @Valid @RequestBody ProjectUpdateRequest request) {
-        return projectService.addUpdate(id, request, currentUser.require());
+    /** Multipart so the owner can show a photo: a JSON "data" part plus an optional "photo" file. */
+    @PostMapping(value = "/{id}/updates", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ProjectResponse addUpdate(@PathVariable Long id,
+                                     @Valid @RequestPart("data") ProjectUpdateRequest request,
+                                     @RequestPart(value = "photo", required = false) MultipartFile photo) {
+        return projectService.addUpdate(id, request, photo, currentUser.require());
+    }
+
+    /** Module 7 — anyone signed in can like a progress update, or take the like back. */
+    @PostMapping("/{id}/updates/{updateId}/likes")
+    public ProjectResponse likeUpdate(@PathVariable Long id, @PathVariable Long updateId) {
+        return projectService.likeUpdate(id, updateId, currentUser.require());
+    }
+
+    /** Module 7 — and say something about it. */
+    @PostMapping("/{id}/updates/{updateId}/comments")
+    public ProjectResponse commentOnUpdate(@PathVariable Long id, @PathVariable Long updateId,
+                                           @Valid @RequestBody UpdateCommentRequest request) {
+        return projectService.commentOnUpdate(id, updateId, request.body(), currentUser.require());
     }
 }

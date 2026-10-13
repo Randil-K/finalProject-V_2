@@ -66,10 +66,12 @@ function Comment({ comment, user, onReact, onReply, reacting, small }) {
               </button>
             );
           })}
-          <button type="button" onClick={() => onReply(comment)} style={actionStyle(false)}>
-            <Icon name="message-square" size="xs" />
-            Reply
-          </button>
+          {onReply ? (
+            <button type="button" onClick={() => onReply(comment)} style={actionStyle(false)}>
+              <Icon name="message-square" size="xs" />
+              Reply
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -116,7 +118,7 @@ function ReplyBox({ target, user, onCancel, onPosted, reportId }) {
 }
 
 /** A report's discussion: comments with times, like and love reactions, and one level of replies. */
-export default function Discussion({ reportId, user, loginFrom }) {
+export default function Discussion({ reportId, user, loginFrom, closed = false }) {
   const state = useApi(() => (user ? api.reports.comments(reportId) : Promise.resolve([])), [reportId, user?.id]);
   const [body, setBody] = React.useState('');
   const [posting, setPosting] = React.useState(false);
@@ -170,7 +172,7 @@ export default function Discussion({ reportId, user, loginFrom }) {
         {(comments) => {
           const topLevel = comments.filter((c) => !c.parentId);
           const repliesFor = (id) => comments.filter((c) => c.parentId === id);
-          const shared = { user, onReact: react, onReply: setReplyTo };
+          const shared = { user, onReact: react, onReply: closed ? null : setReplyTo };
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
               {topLevel.map((comment) => (
@@ -203,10 +205,18 @@ export default function Discussion({ reportId, user, loginFrom }) {
         }}
       </Async>
 
-      <Textarea placeholder="Add what you know about this site…" rows={2} maxLength={1000} value={body} onChange={(e) => setBody(e.target.value)} />
-      <Button variant="secondary" style={{ alignSelf: 'flex-end' }} disabled={!body.trim() || posting} onClick={post}>
-        {posting ? 'Posting…' : 'Post comment'}
-      </Button>
+      {closed ? (
+        <p style={{ font: 'var(--text-caption)', color: 'var(--text-muted)' }}>
+          The discussion is closed — an administrator has decided on this report.
+        </p>
+      ) : (
+        <>
+          <Textarea placeholder="Add what you know about this site…" rows={2} maxLength={1000} value={body} onChange={(e) => setBody(e.target.value)} />
+          <Button variant="secondary" style={{ alignSelf: 'flex-end' }} disabled={!body.trim() || posting} onClick={post}>
+            {posting ? 'Posting…' : 'Post comment'}
+          </Button>
+        </>
+      )}
     </div>
   );
 }

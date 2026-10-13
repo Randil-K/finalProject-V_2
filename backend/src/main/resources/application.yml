@@ -2,27 +2,53 @@ spring:
   application:
     name: cleanup-backend
 
-  # Default profile runs on in-memory H2 so the API starts with no database setup.
-  # Use the `mysql` profile (application-mysql.yml) for the real target database.
+  # The system's database is MySQL. XAMPP installs MariaDB under that name; both speak the same
+  # protocol, so only the dialect differs — see DB_DIALECT below and application-local.yml.
+  # The `mysql` profile (application-mysql.yml) adds what a hosted deployment needs on top.
+  # The test suite overrides all of this with in-memory H2 (src/test/resources/application.properties),
+  # and the `h2` profile runs the app itself without a database server.
   datasource:
-    url: jdbc:h2:mem:tideline;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ''
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tideline}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Colombo&allowPublicKeyRetrieval=true&useSSL=false}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     open-in-view: false
     properties:
       hibernate.format_sql: true
       # Enums are stored as text without CHECK lists, so new statuses don't break a saved database.
-      hibernate.dialect: lk.tideline.cleanup.config.dialect.TidelineH2Dialect
+      # TidelineMariaDBDialect for MariaDB (XAMPP), TidelineMySQLDialect for an Oracle MySQL server.
+      hibernate.dialect: ${DB_DIALECT:lk.tideline.cleanup.config.dialect.TidelineMariaDBDialect}
 
   h2:
     console:
-      enabled: true
-      path: /h2-console
+      enabled: false
+
+  # Password reset emails. Spring only builds a mail sender once spring.mail.host is set, which is
+  # why the host is left to the environment: with SPRING_MAIL_HOST unset the link is written to the
+  # server log instead, and the flow still works for a demo.
+  #
+  # Gmail, with an App Password (Google Account -> Security -> 2-Step Verification -> App passwords):
+  #   SPRING_MAIL_HOST=smtp.gmail.com
+  #   SPRING_MAIL_USERNAME=you@gmail.com
+  #   SPRING_MAIL_PASSWORD=<the 16-character app password, no spaces>
+  # Gmail only lets an account send as itself, so the From address follows the username unless
+  # MAIL_FROM names an address that provider allows.
+  mail:
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SPRING_MAIL_AUTH:true}
+      mail.smtp.starttls.enable: ${SPRING_MAIL_STARTTLS:true}
+      mail.smtp.starttls.required: ${SPRING_MAIL_STARTTLS:true}
+      # A mail server that will not answer must not hold up the request.
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
 
   jackson:
     default-property-inclusion: non_null

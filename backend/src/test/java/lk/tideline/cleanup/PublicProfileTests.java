@@ -39,7 +39,7 @@ class PublicProfileTests {
     void aPublicProfileShowsActivityButNoContactDetails() {
         User member = user(Role.CITIZEN, AccountStatus.APPROVED);
         reportService.create(new CreateReportRequest("Plastic", "Bottles.", Severity.LOW,
-                "Galle", "Southern Province", 6.03, 80.21, null), member);
+                "Galle", "Southern Province", "Galle", 6.03, 80.21, null, true), member);
 
         PublicProfileResponse profile = userService.publicProfile(member.getId(), user(Role.CITIZEN, AccountStatus.APPROVED));
 

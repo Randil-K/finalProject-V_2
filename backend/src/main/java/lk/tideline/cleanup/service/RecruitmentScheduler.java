@@ -34,6 +34,22 @@ public class RecruitmentScheduler {
         this.properties = properties;
     }
 
+    /**
+     * A project can reach the people it needs without a fresh join — someone leaves, a target is
+     * lowered, or the rule itself changes — so its state is checked again here rather than only
+     * at the moment somebody signs up.
+     */
+    @Scheduled(fixedDelayString = "#{${tideline.alerts.widen-scan-minutes:15} * 60000}", initialDelay = 15000)
+    @Transactional
+    public void markProjectsThatAlreadyHaveTheirPeople() {
+        for (CleanupProject project : projects.findByResourcesFinalizedAtIsNotNullAndResourcesGatheredAtIsNull()) {
+            if (project.getStatus() != ProjectStatus.COMPLETED && projectService.hasEverythingItNeeds(project)) {
+                projectService.catchUpGathered(project.getId());
+                log.info("{} already had the people it needs", project.getReference());
+            }
+        }
+    }
+
     @Scheduled(fixedDelayString = "#{${tideline.alerts.widen-scan-minutes:15} * 60000}", initialDelay = 60000)
     @Transactional
     public void widenCallsThatHaveWaitedLongEnough() {

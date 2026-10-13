@@ -180,7 +180,7 @@ class InfoRequestTests {
         assertThat(answered.responseText()).isEqualTo("Taken from the jetty.");
         assertThat(answered.attachments()).hasSize(1);
         assertThat(titles(admin)).contains("More information received on " + answered.reportReference());
-        assertThat(alerts.findByRecipientOrderByCreatedAtDesc(reporter))
+        assertThat(alerts.findByRecipientOrderByCreatedAtDescIdDesc(reporter))
                 .filteredOn(alert -> alert.getType() == AlertType.INFO_REQUESTED)
                 .allMatch(Alert::isReadFlag);
 
@@ -217,11 +217,11 @@ class InfoRequestTests {
 
     private Long report(User reporter) {
         return reportService.create(new CreateReportRequest("Plastic on the shore", "Bottles.", Severity.LOW,
-                "Galle", "Southern Province", 6.03, 80.21, null), reporter).id();
+                "Galle", "Southern Province", "Galle", 6.03, 80.21, null, true), reporter).id();
     }
 
     private List<String> titles(User user) {
-        return alerts.findByRecipientOrderByCreatedAtDesc(user).stream().map(Alert::getTitle).toList();
+        return alerts.findByRecipientOrderByCreatedAtDescIdDesc(user).stream().map(Alert::getTitle).toList();
     }
 
     private User user(Role role) {

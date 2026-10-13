@@ -69,7 +69,7 @@ class GovernanceTests {
         assertThat(registered.user().accountStatus()).isEqualTo(AccountStatus.PENDING_REVIEW);
         assertThat(titlesFor(admin)).contains("New volunteer diver to verify");
         // A notice about someone else's registration, not a decision on the administrator's own account.
-        assertThat(alerts.findByRecipientOrderByCreatedAtDesc(admin))
+        assertThat(alerts.findByRecipientOrderByCreatedAtDescIdDesc(admin))
                 .filteredOn(alert -> alert.getTitle().equals("New volunteer diver to verify"))
                 .extracting(Alert::getType)
                 .containsOnly(AlertType.ACCOUNT_APPLICATION);
@@ -258,7 +258,7 @@ class GovernanceTests {
         assertThat(response.adminDecision()).isEqualTo(ReviewDecision.MORE_INFO_REQUESTED);
         assertThat(response.status()).isEqualTo(ReportStatus.VERIFIED);
         assertThat(response.infoRequestStatus()).isEqualTo(InfoRequestStatus.OPEN);
-        assertThat(alerts.findByRecipientOrderByCreatedAtDesc(reporter)).anySatisfy(alert -> {
+        assertThat(alerts.findByRecipientOrderByCreatedAtDescIdDesc(reporter)).anySatisfy(alert -> {
             assertThat(alert.getType()).isEqualTo(AlertType.INFO_REQUESTED);
             assertThat(alert.isCritical()).isTrue();
         });
@@ -306,9 +306,29 @@ class GovernanceTests {
         assertThat(response.projectId()).isNull();
     }
 
+    @Test
+    void oneIdentityCardBelongsToOneAccount() {
+        String card = "199012345V";
+        RegisterRequest first = new RegisterRequest("Test", "Person", UUID.randomUUID() + "@test.lk", card,
+                "password123", null, Role.CITIZEN, null, null, null, null, null, null, null, null);
+        RegisterRequest again = new RegisterRequest("Other", "Person", UUID.randomUUID() + "@test.lk", card,
+                "password123", null, Role.CITIZEN, null, null, null, null, null, null, null, null);
+
+        authService.register(first, List.of());
+
+        assertThatThrownBy(() -> authService.register(again, List.of()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("NIC");
+    }
+
     private static RegisterRequest registration(String email, Role role, String organisationName, String website) {
-        return new RegisterRequest("Test Person", email, "password123", null, role,
+        return new RegisterRequest("Test", "Person", email, nic(), "password123", null, role,
                 null, null, null, null, organisationName, null, null, website);
+    }
+
+    /** A different identity card each time: one person holds one account. */
+    private static String nic() {
+        return String.format("%012d", Math.abs(UUID.randomUUID().getMostSignificantBits() % 1_000_000_000_000L));
     }
 
     private static MultipartFile pdf(String name) {
@@ -317,7 +337,7 @@ class GovernanceTests {
     }
 
     private List<String> titlesFor(User user) {
-        return alerts.findByRecipientOrderByCreatedAtDesc(user).stream().map(Alert::getTitle).toList();
+        return alerts.findByRecipientOrderByCreatedAtDescIdDesc(user).stream().map(Alert::getTitle).toList();
     }
 
     private User user(Role role) {

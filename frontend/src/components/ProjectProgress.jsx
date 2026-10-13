@@ -1,7 +1,7 @@
 import React from 'react';
-import { ProgressBar } from '../design-system';
 import { formatDate } from '../lib/format.js';
 
+/** The headline numbers for a cleanup. Progress itself is told by the story, not a percentage. */
 export default function ProjectProgress({ project }) {
   const stats = [
     { value: project.volunteerCount, label: 'Volunteers' },
@@ -12,14 +12,7 @@ export default function ProjectProgress({ project }) {
 
   return (
     <div style={{ padding: 'var(--space-5)', borderRadius: 'var(--radius-lg)', background: 'var(--surface-card)', border: '1px solid var(--border-subtle)' }}>
-      <ProgressBar
-        label="Completion"
-        value={project.completionPercentage}
-        valueLabel={`${project.completionPercentage}%`}
-        tone={project.status === 'COMPLETED' ? 'verified' : 'accent'}
-        size="lg"
-      />
-      <div style={{ display: 'flex', gap: 24, marginTop: 'var(--space-4)', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
         {stats.map((stat) => (
           <div key={stat.label}>
             <div style={{ font: '600 20px/1 var(--font-mono)', color: 'var(--text-strong)' }}>{stat.value}</div>

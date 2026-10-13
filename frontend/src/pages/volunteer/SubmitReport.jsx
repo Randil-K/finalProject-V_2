@@ -2,8 +2,10 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon, IconButton, Button, Input, Textarea, Select, Alert } from '../../design-system';
 import EvidencePicker from '../../components/EvidencePicker.jsx';
+import OwnerResponsibilities from '../../components/OwnerResponsibilities.jsx';
 import { api } from '../../api/index.js';
-import { PROVINCES } from '../../lib/format.js';
+import { DISTRICTS, PROVINCES } from '../../lib/format.js';
+import { nearestPlace } from '../../lib/places.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 
 const SEVERITIES = [
@@ -26,12 +28,17 @@ export default function SubmitReport() {
     severity: '',
     locationName: user?.city || '',
     province: user?.province || '',
+    district: '',
   });
   const [error, setError] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const [created, setCreated] = React.useState(null);
+  // Nobody files a report before answering the owner's policy: null means it is still on screen.
+  const [willLead, setWillLead] = React.useState(null);
 
   const set = (key) => (event) => setForm((f) => ({ ...f, [key]: event.target.value }));
+  // The site name is prefilled from the reporter's profile, so a captured location may correct it.
+  const namedBySomeone = React.useRef(false);
 
   function captureLocation() {
     setError(null);
@@ -42,16 +49,29 @@ export default function SubmitReport() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+        place(position.coords.latitude, position.coords.longitude);
         setLocating(false);
       },
       () => {
         // Falls back to the user's saved province centre so a report can still be filed.
-        setCoords({ latitude: 7.2083, longitude: 79.8358 });
+        place(7.2083, 79.8358);
         setLocating(false);
       },
       { timeout: 8000 },
     );
+  }
+
+  /** A captured position names itself: the nearest town, and the district and province it sits in. */
+  function place(latitude, longitude) {
+    setCoords({ latitude, longitude });
+    const nearest = nearestPlace(latitude, longitude);
+    if (!nearest) return;
+    setForm((f) => ({
+      ...f,
+      locationName: namedBySomeone.current && f.locationName.trim() ? f.locationName : nearest.name,
+      district: nearest.district,
+      province: nearest.province,
+    }));
   }
 
   async function submit(event) {
@@ -69,8 +89,10 @@ export default function SubmitReport() {
         severity: form.severity,
         locationName: form.locationName,
         province: form.province || null,
+        district: form.district || null,
         latitude: coords.latitude,
         longitude: coords.longitude,
+        willLeadCleanup: willLead,
       }, files);
       setCreated(report);
     } catch (err) {
@@ -78,6 +100,10 @@ export default function SubmitReport() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (willLead === null) {
+    return <OwnerResponsibilities onAccept={() => setWillLead(true)} onDecline={() => setWillLead(false)} />;
   }
 
   if (created) {
@@ -107,6 +133,24 @@ export default function SubmitReport() {
 
       {error ? <Alert tone="danger" title="Check this before submitting">{error}</Alert> : null}
 
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
+          background: 'var(--surface-sunken)', border: '1px solid var(--border-subtle)',
+        }}
+      >
+        <Icon name={willLead ? 'badge-check' : 'users'} size="sm" color="var(--sea-600)" />
+        <span style={{ font: 'var(--text-body-sm)', color: 'var(--text-body-color)', flex: 1, minWidth: 180 }}>
+          {willLead
+            ? 'You accepted the project owner’s responsibilities.'
+            : 'You declined to lead — anyone who joins the cleanup can post its progress.'}
+        </span>
+        <Button variant="ghost" size="sm" type="button" onClick={() => setWillLead(null)}>
+          Read it again
+        </Button>
+      </div>
+
       <EvidencePicker
         label="Evidence"
         hint="Add at least one photo — reports with evidence are verified about twice as fast."
@@ -114,7 +158,22 @@ export default function SubmitReport() {
         onChange={setFiles}
       />
 
-      <Input label="Site name" required placeholder="e.g. Negombo" iconLeft="map-pin" value={form.locationName} onChange={set('locationName')} />
+      <Input
+        label="Site name"
+        required
+        placeholder="e.g. Negombo"
+        iconLeft="map-pin"
+        value={form.locationName}
+        onChange={(e) => { namedBySomeone.current = true; set('locationName')(e); }}
+      />
+      <Select
+        label="District"
+        placeholder="Select the district"
+        hint={coords ? 'Filled in from the location you captured — change it if it is wrong.' : undefined}
+        options={DISTRICTS}
+        value={form.district}
+        onChange={set('district')}
+      />
       <Select label="Province" placeholder="Select the province" options={PROVINCES} value={form.province} onChange={set('province')} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -142,7 +201,10 @@ export default function SubmitReport() {
 
       <Alert tone="info" title="What happens next">
         People nearby who have alerts turned on are asked to confirm what you saw. An administrator and then the
-        government officer review the report, and if it's approved it becomes a cleanup project that you own.
+        government officer review the report, and if it's approved it becomes a cleanup project
+        {willLead
+          ? ' that you own — you post its progress and close it when the site is clean.'
+          : ' you own in name, with its progress left open to everyone who joins the cleanup.'}
       </Alert>
 
       <Button type="submit" size="lg" fullWidth iconLeft="flag" loading={busy} disabled={busy}>

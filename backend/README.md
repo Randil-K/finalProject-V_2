@@ -1,6 +1,6 @@
 # Backend — Community-Based Ocean & Coastal Cleanup Management System
 
-Spring Boot 3.3 · Java 21 · Spring Data JPA · Spring Security (JWT) · H2 (dev) / MySQL (target).
+Spring Boot 3.3 · Java 21 · Spring Data JPA · Spring Security (JWT) · MySQL.
 
 ## Run it
 
@@ -8,23 +8,121 @@ Spring Boot 3.3 · Java 21 · Spring Data JPA · Spring Security (JWT) · H2 (de
 ./mvnw spring-boot:run
 ```
 
-Starts on `http://localhost:8080` with the `local` profile: an H2 database kept in
-`backend/data/`, so accounts, reports and comments survive restarts. The first start seeds the
-same demo content the frontend shows. To start again from the demo data, stop the server and
-delete `backend/data/` (and `backend/uploads/` for uploaded files).
+Starts on `http://localhost:8080` with the `local` profile. **Start MySQL first** — in XAMPP,
+Control Panel → MySQL → Start. The database (`tideline`) and its tables are created on the first
+run, which also seeds the same demo content the frontend shows. To start again from the demo data,
+drop the database and let it be recreated:
+
+```
+mysql -u root -e "DROP DATABASE tideline"
+```
+
+(and delete `backend/uploads/` for uploaded files).
+
+## The database
+
+| | |
+| --- | --- |
+| Server | MySQL 8, or MariaDB 10.4+ — which is what XAMPP installs under the name "MySQL" |
+| Database | `tideline`, `utf8mb4` / `utf8mb4_unicode_ci` |
+| Driver | `com.mysql.cj.jdbc.Driver` (speaks to both) |
+| Schema | created and kept up to date by Hibernate (`ddl-auto: update`) |
+| Settings | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DIALECT` |
+
+`db/schema-mysql.sql` is that schema written out — 21 tables with their keys, indexes and foreign
+keys — for anyone who would rather create it by hand or read it. `db/tideline-mysql.sql` is a full
+dump, schema and data together, which restores the demo database in one command:
+
+```
+mysql -u root tideline < db/tideline-mysql.sql
+```
+
+**MariaDB or MySQL.** MariaDB announces itself as `5.5.5-10.4.32-MariaDB`, a disguise left over
+from old clients. `TidelineMariaDBDialect` reads the real version out of it, and is the default.
+Against an Oracle MySQL server, set
+`DB_DIALECT=lk.tideline.cleanup.config.dialect.TidelineMySQLDialect`.
+
+That same disguise fools MySQL Connector/J, which takes `5.5.5` at face value and, since fractional
+seconds arrived in MySQL 5.6.4, drops them before sending: **against MariaDB every timestamp is
+stored to the second**, even though the columns are `datetime(6)`. Nothing in the system depends on
+finer timing, and every list ordered by time breaks ties on the id, which is the order rows were
+written in. On a real MySQL 8 server the microseconds are kept.
+
+**Without a database server.** The `h2` profile runs everything on a file-backed H2 database in
+`backend/data/`, which is what the project used before the move to MySQL:
+
+```
+./mvnw spring-boot:run -Dspring-boot.run.profiles=h2
+```
 
 H2 console: `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:file:./data/tideline;AUTO_SERVER=TRUE`,
-user `sa`, no password). Tests and a plain `java -jar` run without a profile use an in-memory
-database instead.
+user `sa`, no password).
 
-### Against MySQL
+**Moving an H2 database into MySQL.** `tools/H2ToMySql.java` copies every row across, table by
+table and column by column, into the schema Hibernate has already created. Stop the backend first,
+then (from `backend/`):
+
+```
+java --class-path "%USERPROFILE%\.m2\repository\com\h2database\h2\2.2.224\h2-2.2.224.jar;%USERPROFILE%\.m2\repository\com\mysql\mysql-connector-j\8.3.0\mysql-connector-j-8.3.0.jar" tools\H2ToMySql.java --dry-run
+```
+
+It prints a row count per table and what it would do; drop `--dry-run` to carry it out.
+
+### Deployment profile
 
 ```
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=mysql
 ```
 
-Reads `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` (see
-`application-mysql.yml`); the schema is created by Hibernate and demo seeding is off.
+The same database with what a hosted deployment needs: a real `TIDELINE_JWT_SECRET` demanded at
+startup, demo seeding off, and quieter logging. See `.env.example`.
+
+## Password reset emails
+
+The forgot-password screen asks the API for a link, which is emailed to the account. The link is
+one-time, expires in 30 minutes, and is stored only as a hash — and the response is the same whether
+or not the address has an account, so the form cannot be used to find out who is registered.
+
+Spring only builds a mail sender once `SPRING_MAIL_HOST` is set. **Without it the link is written to
+the server log instead**, which is enough to follow the flow in a demo:
+
+```
+No mail server configured. Password reset link for hiruna@example.lk: http://localhost:5173/reset-password?token=...
+```
+
+To send it for real with Gmail, create an **App Password** (Google Account → Security → 2-Step
+Verification → App passwords — an ordinary Gmail password will not work), then copy
+`run-with-mail.cmd.example` to `run-with-mail.cmd`, put the 16-character password in it, and run that
+instead of `mvnw spring-boot:run`. The copy is git-ignored. The same three settings work for any
+provider:
+
+| variable | Gmail | what it is |
+| --- | --- | --- |
+| `SPRING_MAIL_HOST` | `smtp.gmail.com` | turns real sending on |
+| `SPRING_MAIL_PORT` | `587` | STARTTLS submission port |
+| `SPRING_MAIL_USERNAME` | your address | the account that sends |
+| `SPRING_MAIL_PASSWORD` | app password | never the account password |
+| `SPRING_MAIL_STARTTLS` | `true` | set `false` only for a local test server |
+| `SPRING_MAIL_AUTH` | `true` | set `false` only for a local test server |
+
+Gmail only lets an account send as itself, so the From address follows `SPRING_MAIL_USERNAME`;
+`MAIL_FROM` is for a domain that allows other addresses. The email goes out as both plain text and
+HTML, and a send that fails is logged without telling the person asking — again so the form gives
+nothing away.
+
+## Tests
+
+```
+./mvnw test
+```
+
+73 tests on in-memory H2, so they need no server and finish in a couple of minutes. To run the
+same suite against MySQL — the mappings the application really uses — point it at its own
+database, which is created and dropped around the run:
+
+```
+./mvnw test -Dspring.profiles.active=mysqltest
+```
 
 ## Deploying
 
@@ -156,10 +254,10 @@ Authenticate with `POST /api/auth/login`, then send `Authorization: Bearer <toke
 - **Closing the loop for reporters.** The reporter is alerted at each review decision, when their
   report becomes a project, and when the site is cleaned.
 - **Enum columns.** Enum fields are stored as plain text (`@JdbcTypeCode(SqlTypes.VARCHAR)`), and
-  the `TidelineH2Dialect` / `TidelineMySQLDialect` skip Hibernate's `CHECK (... IN (...))` lists, so
-  adding a status or alert type doesn't break a database `ddl-auto: update` already created. A MySQL
-  database created before this change still has native `enum` columns and needs a one-off
-  `ALTER TABLE ... MODIFY ... VARCHAR(255)` for each.
+  the Tideline dialects (`TidelineMariaDBDialect`, `TidelineMySQLDialect`, `TidelineH2Dialect`) skip
+  Hibernate's `CHECK (... IN (...))` lists, so adding a status or alert type doesn't break a database
+  `ddl-auto: update` already created. A MySQL database created before this change still has native
+  `enum` columns and needs a one-off `ALTER TABLE ... MODIFY ... VARCHAR(255)` for each.
 
 - **Officials hear about their work.** Administrators are alerted about new accounts to verify
   and about authority decisions; authority officers when a report is sent to them.

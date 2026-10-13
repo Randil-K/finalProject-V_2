@@ -78,7 +78,7 @@ public class UserService {
         }
         Double average = participantRepository.averageMark(user.getId());
         long marked = participantRepository.countByUserIdAndContributionMarkIsNotNull(user.getId());
-        List<OwnedProject> owned = projectRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId()).stream()
+        List<OwnedProject> owned = projectRepository.findByOwnerIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
                 .map(OwnedProject::from)
                 .toList();
         return PublicProfileResponse.from(user,
@@ -117,7 +117,7 @@ public class UserService {
     private UserResponse toResponse(User user) {
         Double average = participantRepository.averageMark(user.getId());
         long marked = participantRepository.countByUserIdAndContributionMarkIsNotNull(user.getId());
-        List<OwnedProject> owned = projectRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId()).stream()
+        List<OwnedProject> owned = projectRepository.findByOwnerIdOrderByCreatedAtDescIdDesc(user.getId()).stream()
                 .map(OwnedProject::from)
                 .toList();
         return UserResponse.from(user,
@@ -130,14 +130,16 @@ public class UserService {
     public UserResponse updateProfile(Long userId, UpdateProfileRequest request) {
         User user = get(userId);
 
-        if (request.fullName() != null) {
-            user.setFullName(request.fullName());
+        if (request.firstName() != null || request.lastName() != null) {
+            user.setName(
+                    request.firstName() != null ? request.firstName() : user.getFirstName(),
+                    request.lastName() != null ? request.lastName() : user.getLastName());
         }
         if (request.phone() != null) {
-            user.setPhone(request.phone());
+            user.setPhone(ContactDetails.normalisePhone(request.phone()));
         }
         if (request.province() != null) {
-            user.setProvince(request.province());
+            user.setProvince(ContactDetails.requireKnownProvince(request.province()));
         }
         if (request.city() != null) {
             user.setCity(request.city());
@@ -196,7 +198,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public List<AdminUserResponse> listForAdmin(String query) {
         String needle = query == null ? "" : query.trim().toLowerCase();
-        return userRepository.findAllByOrderByCreatedAtDesc().stream()
+        return userRepository.findAllByOrderByCreatedAtDescIdDesc().stream()
                 .filter(user -> needle.isEmpty()
                         || user.getFullName().toLowerCase().contains(needle)
                         || user.getEmail().toLowerCase().contains(needle))
@@ -224,7 +226,7 @@ public class UserService {
     /** Divers and organisations waiting for, or already through, administrator verification. */
     @Transactional(readOnly = true)
     public List<AccountReviewResponse> verifications(AccountStatus status) {
-        return userRepository.findByAccountStatusAndRoleInOrderByCreatedAtAsc(status, VERIFIED_ROLES).stream()
+        return userRepository.findByAccountStatusAndRoleInOrderByCreatedAtAscIdAsc(status, VERIFIED_ROLES).stream()
                 .map(AccountReviewResponse::from)
                 .toList();
     }

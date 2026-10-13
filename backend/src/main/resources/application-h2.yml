@@ -1,0 +1,22 @@
+# The old file-backed H2 database, kept so the API can be shown without a database server running:
+#   mvnw spring-boot:run -Dspring-boot.run.profiles=h2
+#
+# The system's database is MySQL (the `local` and `mysql` profiles). This profile is a fallback, and
+# its data lives in backend/data/ — delete that folder to start again from the demo data.
+spring:
+  datasource:
+    url: jdbc:h2:file:${H2_FILE:./data/tideline};AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ''
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate.dialect: lk.tideline.cleanup.config.dialect.TidelineH2Dialect
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console

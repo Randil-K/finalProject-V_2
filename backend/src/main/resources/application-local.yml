@@ -1,9 +1,30 @@
 # Local development profile, used by `mvnw spring-boot:run` (see spring-boot.run.profiles in pom.xml).
-# Same H2 database as the default profile, but kept in a file so accounts, reports and uploads
-# survive a restart. Delete backend/data/ to start again from the demo data.
+#
+# The system runs on MySQL. XAMPP installs MariaDB under the name "MySQL"; it speaks the same
+# protocol, so the same driver and URL serve both and only the dialect differs:
+#   XAMPP / MariaDB   DB_DIALECT unset (the default below)
+#   Oracle MySQL      DB_DIALECT=lk.tideline.cleanup.config.dialect.TidelineMySQLDialect
+#
+# Start the database first (XAMPP Control Panel → MySQL → Start), then run the backend. The schema
+# is created and kept up to date by Hibernate; backend/db/schema-mysql.sql is the same thing written
+# out, for anyone who would rather create it by hand.
+#
+# To run without a database server at all, use the `h2` profile instead:
+#   mvnw spring-boot:run -Dspring-boot.run.profiles=h2
 spring:
   datasource:
-    url: jdbc:h2:file:${H2_FILE:./data/tideline};AUTO_SERVER=TRUE
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tideline}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Colombo&allowPublicKeyRetrieval=true&useSSL=false
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+
   jpa:
     hibernate:
       ddl-auto: update
+    properties:
+      hibernate.dialect: ${DB_DIALECT:lk.tideline.cleanup.config.dialect.TidelineMariaDBDialect}
+      hibernate.format_sql: true
+
+  h2:
+    console:
+      enabled: false

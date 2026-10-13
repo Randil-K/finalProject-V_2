@@ -1,6 +1,7 @@
 package lk.tideline.cleanup.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -91,6 +92,14 @@ public class CleanupProject {
 
     private Instant startedAt;
     private Instant completedAt;
+
+    /**
+     * Set when the reporter declined the owner's responsibilities: then anyone who has joined the
+     * cleanup can post its progress, not the owner alone.
+     */
+    @ColumnDefault("false")
+    @Column(nullable = false)
+    private boolean progressOpenToParticipants = false;
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();

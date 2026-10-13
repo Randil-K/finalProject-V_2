@@ -8,7 +8,7 @@ import { Async } from './AsyncState.jsx';
 import { plural, timeAgo } from '../lib/format.js';
 
 const KIND = {
-  NEW_REPORT_NEARBY: { icon: 'map-pin', color: 'var(--tide-600)' },
+  NEW_REPORT_NEARBY: { icon: 'map-pin', color: 'var(--coral-600)', tint: 'var(--coral-100)' },
   REPORT_VERIFIED: { icon: 'badge-check', color: 'var(--status-verified)' },
   ALERT_ESCALATED: { icon: 'flag', color: 'var(--status-escalated)' },
   PROJECT_PLANNED: { icon: 'hand-heart', color: 'var(--tide-600)' },
@@ -17,8 +17,8 @@ const KIND = {
   OPPORTUNITY: { icon: 'anchor', color: 'var(--buoy-600)' },
   ACCOUNT_REVIEW: { icon: 'user', color: 'var(--buoy-600)' },
   ACCOUNT_APPLICATION: { icon: 'badge-check', color: 'var(--buoy-600)' },
-  HELP_NEEDED: { icon: 'hand-heart', color: 'var(--tide-600)' },
-  RESOURCES_GATHERED: { icon: 'users', color: 'var(--status-verified)' },
+  HELP_NEEDED: { icon: 'hand-heart', color: 'var(--buoy-600)', tint: 'var(--buoy-100)' },
+  RESOURCES_GATHERED: { icon: 'users', color: 'var(--sea-600)', tint: 'var(--sea-100)' },
   COMMENT_REPLY: { icon: 'message-square', color: 'var(--tide-600)' },
   INFO_REQUESTED: { icon: 'triangle-alert', color: 'var(--danger)' },
   INFO_RESPONSE: { icon: 'message-square', color: 'var(--sea-600)' },
@@ -90,11 +90,15 @@ export default function AlertList({ linkFor, empty }) {
                   onClick={() => open(alert)}
                   style={{
                     cursor: target || !alert.read ? 'pointer' : 'default',
-                    ...(urgent ? { background: 'var(--danger-bg)', border: '1px solid var(--danger)' } : null),
+                    ...(urgent
+                      ? { background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderLeft: '4px solid var(--danger)' }
+                      : !alert.read && kind.tint
+                        ? { background: kind.tint, borderLeft: `4px solid ${kind.color}` }
+                        : null),
                   }}
                 >
                   <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-                    <span style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
+                    <span style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', boxShadow: !alert.read && kind.tint ? `0 0 0 1px ${kind.color}` : 'none' }}>
                       <Icon name={kind.icon} size="sm" color={kind.color} />
                     </span>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>

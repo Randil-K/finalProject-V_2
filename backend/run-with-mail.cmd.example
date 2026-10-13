@@ -1,0 +1,24 @@
+@echo off
+REM ---------------------------------------------------------------------------
+REM Runs the backend with password reset emails actually being sent.
+REM
+REM 1. Copy this file to run-with-mail.cmd  (that name is git-ignored, so your
+REM    password never reaches the repository).
+REM 2. Put your Gmail App Password in it — Google Account -> Security ->
+REM    2-Step Verification -> App passwords. It is 16 characters; type it with
+REM    no spaces. An ordinary Gmail password will not work.
+REM 3. Run it from the backend folder:  run-with-mail.cmd
+REM
+REM Without this, the backend still runs — the reset link is written to the
+REM server log instead of being emailed.
+REM ---------------------------------------------------------------------------
+
+set SPRING_MAIL_HOST=smtp.gmail.com
+set SPRING_MAIL_PORT=587
+set SPRING_MAIL_USERNAME=cleanupsystemproject@gmail.com
+set SPRING_MAIL_PASSWORD=your-16-character-app-password
+
+REM Gmail only lets an account send as itself, so the From address follows the
+REM username above. Set MAIL_FROM only for a domain that allows other addresses.
+
+call mvnw.cmd spring-boot:run

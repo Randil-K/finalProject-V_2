@@ -31,8 +31,9 @@ public class ProjectUpdate {
     @Column(nullable = false)
     private UpdateStage stage = UpdateStage.DURING;
 
+    /** Empty when the update is a photo on its own; the API reports that as no note at all. */
     @Column(nullable = false, length = 1000)
-    private String note;
+    private String note = "";
 
     @Column(length = 1000)
     private String imageUrl;

@@ -92,6 +92,19 @@ export const PROVINCES = [
   'Sabaragamuwa Province',
 ];
 
+/** Sri Lanka's twenty-five districts, in province order. */
+export const DISTRICTS = [
+  'Colombo', 'Gampaha', 'Kalutara',
+  'Kandy', 'Matale', 'Nuwara Eliya',
+  'Galle', 'Matara', 'Hambantota',
+  'Jaffna', 'Kilinochchi', 'Mannar', 'Vavuniya', 'Mullaitivu',
+  'Batticaloa', 'Ampara', 'Trincomalee',
+  'Kurunegala', 'Puttalam',
+  'Anuradhapura', 'Polonnaruwa',
+  'Badulla', 'Monaragala',
+  'Ratnapura', 'Kegalle',
+];
+
 export const CERTIFICATION_OPTIONS = Object.entries(CERTIFICATION_LABEL).map(([value, label]) => ({ value, label }));
 
 export const REVIEW_DECISION = {
@@ -109,6 +122,11 @@ export const ACCOUNT_STATUS = {
 
 /** Where a report is in official review, in a few words for lists. */
 export function reviewStage(report) {
+  if (report.status === 'APPROVED' || report.status === 'CLEANED') {
+    return report.resourcesAssigned
+      ? { label: 'Resources assigned', tone: 'success' }
+      : { label: 'Waiting for resources', tone: 'warning' };
+  }
   if (report.status === 'REJECTED') {
     return { label: report.authorityDecision === 'REJECTED' ? 'Rejected by authority' : 'Rejected by admin', tone: 'danger' };
   }
@@ -117,7 +135,7 @@ export function reviewStage(report) {
     if (report.infoRequestStatus === 'ANSWERED' && report.authorityDecision === 'MORE_INFO_REQUESTED') {
       return { label: 'Reporter sent info', tone: 'accent' };
     }
-    return { label: 'Waiting for government officer', tone: 'warning' };
+    return { label: 'Waiting for approval', tone: 'warning' };
   }
   if (report.infoRequestStatus === 'OPEN') return { label: 'Waiting for reporter', tone: 'info' };
   if (report.infoRequestStatus === 'ANSWERED' && report.adminDecision === 'MORE_INFO_REQUESTED') {
@@ -129,6 +147,14 @@ export function reviewStage(report) {
 
 /** Reports a government officer approved have become projects, so they close to further review. */
 export const CLOSED_REPORT_STATUSES = ['APPROVED', 'REJECTED', 'CLEANED'];
+
+/**
+ * Confirming, disputing and commenting are the community's case to the administrator. Once the
+ * administrator has decided, the case is made and the report takes no more of either.
+ */
+export const communityInputClosed = (report) => CLOSED_REPORT_STATUSES.includes(report.status)
+  || report.adminDecision === 'APPROVED'
+  || report.adminDecision === 'REJECTED';
 
 export function formatBytes(bytes) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;

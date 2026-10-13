@@ -13,9 +13,9 @@ import java.util.Optional;
 
 public interface InfoRequestRepository extends JpaRepository<InfoRequest, Long> {
 
-    List<InfoRequest> findByReportOrderByCreatedAtDesc(PollutionReport report);
+    List<InfoRequest> findByReportOrderByCreatedAtDescIdDesc(PollutionReport report);
 
-    Optional<InfoRequest> findFirstByReportOrderByCreatedAtDesc(PollutionReport report);
+    Optional<InfoRequest> findFirstByReportOrderByCreatedAtDescIdDesc(PollutionReport report);
 
     boolean existsByReportAndStatus(PollutionReport report, InfoRequestStatus status);
 
